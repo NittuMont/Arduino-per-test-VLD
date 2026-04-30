@@ -89,6 +89,7 @@ class MeasurementWorker(QtCore.QThread):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+
     def __init__(self):
         print("[DEBUG] Costruttore MainWindow chiamato")
         super().__init__()
@@ -104,6 +105,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._connection_lost = False
         self._closing = False
         self._psu_attempt = 0
+
+    def _on_psu_reconnect_clicked(self):
+        self._start_psu_connect()
 
 
     # ------------------------------------------------------------------
@@ -129,14 +133,22 @@ class MainWindow(QtWidgets.QMainWindow):
 
         event.accept()       # let Qt close the window
 
+
     def _setup_ui(self):
+        # Layout principale orizzontale
+        main_layout = QtWidgets.QHBoxLayout()
+        main_layout.setSpacing(24)
+        main_layout.setContentsMargins(24, 24, 24, 24)
 
-        # Layout principale
-        layout = QtWidgets.QVBoxLayout()
-        layout.setSpacing(14)
-        layout.setContentsMargins(24, 24, 24, 24)
+        # Colonna sinistra (tutto tranne BLE)
+        left_col = QtWidgets.QVBoxLayout()
+        left_col.setSpacing(14)
 
-        # Semaforo stato alimentatore (inserito in alto)
+        # Colonna destra (BLE)
+        right_col = QtWidgets.QVBoxLayout()
+        right_col.setSpacing(14)
+
+        # Semaforo stato alimentatore (in alto)
         status_bar = QtWidgets.QHBoxLayout()
         self.psu_status_light = QtWidgets.QLabel()
         self.psu_status_light.setFixedSize(32, 32)
@@ -147,8 +159,114 @@ class MainWindow(QtWidgets.QMainWindow):
         status_bar.addWidget(self.psu_status_text)
         self.psu_attempts_label = QtWidgets.QLabel("Tentativi: 0")
         status_bar.addWidget(self.psu_attempts_label)
+        self.psu_reconnect_btn = QtWidgets.QPushButton("Riconnetti PSU")
+        self.psu_reconnect_btn.setToolTip("Tenta una nuova connessione manuale all'alimentatore")
+        self.psu_reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
+        status_bar.addWidget(self.psu_reconnect_btn)
         status_bar.addStretch()
-        layout.addLayout(status_bar)
+        left_col.addLayout(status_bar)
+
+
+        # ...
+
+        def _setup_ui(self):
+            # Definizione gruppi e layout principali all'inizio
+            excel_group = QtWidgets.QGroupBox("Configurazione Excel")
+            excel_group_layout = QtWidgets.QVBoxLayout()
+            excel_layout = QtWidgets.QHBoxLayout()
+            excel_label = QtWidgets.QLabel("File Excel:")
+            self.excel_path_edit = QtWidgets.QLineEdit()
+            self.excel_path_edit.setPlaceholderText("Nessun file selezionato")
+            self.excel_path_edit.setReadOnly(True)
+            self.browse_btn = QtWidgets.QPushButton("Sfoglia")
+            self.browse_btn.setObjectName("browse_btn")
+            self.browse_btn.clicked.connect(self._browse_excel)
+            matricola_layout = QtWidgets.QHBoxLayout()
+            matricola_label = QtWidgets.QLabel("Matricola:")
+            self.matricola_edit = QtWidgets.QLineEdit()
+            self.matricola_edit.setPlaceholderText("Inserire matricola...")
+            self.matricola_dec_btn = QtWidgets.QPushButton("−")
+            self.matricola_dec_btn.setObjectName("browse_btn")
+            self.matricola_dec_btn.setFixedWidth(50)
+            self.matricola_dec_btn.clicked.connect(self._matricola_decrement)
+            self.matricola_inc_btn = QtWidgets.QPushButton("+")
+            self.matricola_inc_btn.setObjectName("browse_btn")
+            self.matricola_inc_btn.setFixedWidth(50)
+            self.matricola_inc_btn.clicked.connect(self._matricola_increment)
+
+            manual_group = QtWidgets.QGroupBox("Prove di Isolamento")
+            manual_layout = QtWidgets.QHBoxLayout()
+            self.voltage_100_btn = QtWidgets.QPushButton("Prova 100 V")
+            self.voltage_100_btn.clicked.connect(self.on_test_100v)
+            self.voltage_500_btn = QtWidgets.QPushButton("Prova 500 V")
+            self.voltage_500_btn.clicked.connect(self.on_test_500v)
+
+            test_group = QtWidgets.QGroupBox("Routine di Test")
+            test_layout = QtWidgets.QVBoxLayout()
+            self.ad_btn = QtWidgets.QPushButton("Anomalia Diodo (AD)")
+            self.ad_btn.clicked.connect(self.on_test_anomalia_diodo)
+            self.ad_al_btn = QtWidgets.QPushButton("Anomalia Tiristore e Limiti (AT e AL)")
+            self.ad_al_btn.clicked.connect(self.on_test_anomalia_tiristore_limiti)
+            self.innesco_btn = QtWidgets.QPushButton("Innesco Tiristore")
+            self.innesco_btn.clicked.connect(self.on_test_innesco_tiristore)
+
+            # Layout principale orizzontale
+            main_layout = QtWidgets.QHBoxLayout()
+            main_layout.setSpacing(24)
+            main_layout.setContentsMargins(24, 24, 24, 24)
+
+            # Colonna sinistra (tutto tranne BLE)
+            left_col = QtWidgets.QVBoxLayout()
+            left_col.setSpacing(14)
+
+            # Semaforo stato alimentatore (in alto)
+            status_bar = QtWidgets.QHBoxLayout()
+            self.psu_status_light = QtWidgets.QLabel()
+            self.psu_status_light.setFixedSize(32, 32)
+            self.psu_status_light.setStyleSheet("background:#ccc; border-radius:16px; border:2px solid #888;")
+            self.psu_status_text = QtWidgets.QLabel("Alimentatore")
+            self.psu_status_text.setStyleSheet("font-size:13pt; font-weight:bold;")
+            status_bar.addWidget(self.psu_status_light)
+            status_bar.addWidget(self.psu_status_text)
+            self.psu_attempts_label = QtWidgets.QLabel("Tentativi: 0")
+            status_bar.addWidget(self.psu_attempts_label)
+            self.psu_reconnect_btn = QtWidgets.QPushButton("Riconnetti PSU")
+            self.psu_reconnect_btn.setToolTip("Tenta una nuova connessione manuale all'alimentatore")
+            self.psu_reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
+            status_bar.addWidget(self.psu_reconnect_btn)
+            status_bar.addStretch()
+            left_col.addLayout(status_bar)
+
+            # Excel group
+            excel_layout.addWidget(excel_label)
+            excel_layout.addWidget(self.excel_path_edit)
+            excel_layout.addWidget(self.browse_btn)
+            excel_group_layout.addLayout(excel_layout)
+            matricola_layout.addWidget(matricola_label)
+            matricola_layout.addWidget(self.matricola_edit)
+            matricola_layout.addWidget(self.matricola_dec_btn)
+            matricola_layout.addWidget(self.matricola_inc_btn)
+            excel_group_layout.addLayout(matricola_layout)
+            excel_group.setLayout(excel_group_layout)
+            left_col.addWidget(excel_group)
+
+            # Manual group
+            manual_layout.addWidget(self.voltage_100_btn)
+            manual_layout.addWidget(self.voltage_500_btn)
+            manual_group.setLayout(manual_layout)
+            left_col.addWidget(manual_group)
+
+            # Test group
+            test_layout.addWidget(self.ad_btn)
+            test_layout.addWidget(self.ad_al_btn)
+            test_layout.addWidget(self.innesco_btn)
+
+            test_group.setLayout(test_layout)
+            left_col.addWidget(test_group)
+
+        # attempt automatic connection once UI is shown
+        QtCore.QTimer.singleShot(0, self._start_psu_connect)
+        print("[DEBUG] QTimer.singleShot(0, self._start_psu_connect) chiamato")
 
         # ----------------------------------------------------------------
         # [VISUAL] Global stylesheet — può essere rimosso/modificato per
@@ -275,7 +393,7 @@ class MainWindow(QtWidgets.QMainWindow):
         excel_group_layout.addLayout(matricola_layout)
 
         excel_group.setLayout(excel_group_layout)
-        layout.addWidget(excel_group)
+        left_col.addWidget(excel_group)
 
         # ============================================================
         # [VISUAL] Sezione prove di isolamento — raggruppata
@@ -294,7 +412,7 @@ class MainWindow(QtWidgets.QMainWindow):
         manual_layout.addWidget(self.voltage_500_btn)
 
         manual_group.setLayout(manual_layout)
-        layout.addWidget(manual_group)
+        left_col.addWidget(manual_group)
 
         # ============================================================
         # [VISUAL] Sezione test — raggruppata in un QGroupBox
@@ -316,7 +434,7 @@ class MainWindow(QtWidgets.QMainWindow):
         test_layout.addWidget(self.innesco_btn)
 
         test_group.setLayout(test_layout)
-        layout.addWidget(test_group)
+        left_col.addWidget(test_group)
 
         # ============================================================
 
@@ -357,10 +475,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ble_circuit_labels.append(label)
         ble_layout.addLayout(grid)
         ble_group.setLayout(ble_layout)
-        layout.addWidget(ble_group)
+        right_col.addWidget(ble_group)
 
         # [VISUAL] Barra di stato in basso
         # ============================================================
+
         self.result_label = QtWidgets.QLabel("Pronto")
         self.result_label.setAlignment(QtCore.Qt.AlignCenter)
         self.result_label.setStyleSheet("""
@@ -373,22 +492,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 color: #555;
             }
         """)
-        layout.addWidget(self.result_label)
-
-        # [VISUAL] Spaziatore per spingere il pulsante Esci in basso
-        layout.addStretch()
-
-        # quit application button
+        left_col.addWidget(self.result_label)
+        left_col.addStretch()
         self.quit_btn = QtWidgets.QPushButton("Esci")
-        self.quit_btn.setObjectName("quit_btn")  # [VISUAL] per styling rosso
+        self.quit_btn.setObjectName("quit_btn")
         self.quit_btn.clicked.connect(self.close)
-        layout.addWidget(self.quit_btn)
+        left_col.addWidget(self.quit_btn)
+
+        # Unisci colonne nel layout principale
+        main_layout.addLayout(left_col, stretch=3)
+        main_layout.addLayout(right_col, stretch=2)
+
+        # Widget centrale
+        central = QtWidgets.QWidget()
+        central.setLayout(main_layout)
+        self.setCentralWidget(central)
 
         # attempt automatic connection once UI is shown
         QtCore.QTimer.singleShot(0, self._start_psu_connect)
         print("[DEBUG] QTimer.singleShot(0, self._start_psu_connect) chiamato")
 
-        central.setLayout(layout)
+        central.setLayout(main_layout)
         self.setCentralWidget(central)
 
 
@@ -1132,8 +1256,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_test_anomalia_tiristore_limiti(self):
         # perform AT + AL routine with two cartellini
-        if not self.ctrl:
-            return
+        # if not self.ctrl:
+        #     return
         # Cleanup any leftover state from a previous run
         self._stop_existing_timer('_at_al_timer')
         # show popup instructions

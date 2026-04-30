@@ -21,7 +21,7 @@ class ITechConnection:
     re-raising the error.
     """
 
-    def __init__(self, host: str, port: int = 5025, timeout: float = 5.0):
+    def __init__(self, host: str, port: int = 5025, timeout: float = 0.5):
         self.host = host
         self.port = port
         self.timeout = timeout
