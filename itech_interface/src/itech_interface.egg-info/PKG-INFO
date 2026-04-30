@@ -1,0 +1,39 @@
+Metadata-Version: 2.4
+Name: itech_interface
+Version: 0.1.0
+Summary: GUI application to control ITECH IT6018C-1500-30 power supply over LAN
+Author-email: Your Name <you@example.com>
+License: MIT
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: PyQt5
+
+# ITECH IT6018C-1500-30 GUI Interface
+
+This project provides a Python-based graphical application for controlling the ITECH IT6018C-1500-30 industrial power supply over a LAN connection. Users can perform scheduled tests by clicking buttons in the GUI.
+
+## Features
+
+* Connect to the device via TCP/IP directly on the local network
+* Issue SCPI commands to set voltage/current, read measurements, and run automated sequences
+* Simple PyQt5-based interface with programmable test buttons
+
+## Setup
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # on Windows: .venv\Scripts\activate
+pip install -e .
+```
+
+## Running
+
+```bash
+python -m itech_interface
+```
+
+## Testing
+
+```bash
+pytest
+```

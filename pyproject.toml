@@ -1,0 +1,9 @@
+[project]
+name = "itech-controller"
+version = "0.1.0"
+description = "Interface to control ITECH IT6018C power supply"
+authors = ["Antonio <>"]
+
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"

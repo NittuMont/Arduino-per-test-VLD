@@ -1,0 +1,23 @@
+============================================================
+  Compilazione Componenti VLD - Versione Portabile
+============================================================
+
+ISTRUZIONI
+----------
+1. Copiare l'intera cartella "Portabile_Compilazione" sulla
+   chiavetta USB (o su qualsiasi altro supporto).
+
+2. Per avviare il programma:
+   - Fare doppio clic su "Avvia Compilazione.bat"
+   - Oppure fare doppio clic direttamente su "CompilazioneVLD.exe"
+
+3. NON è necessario avere Python installato sul PC.
+   Tutto il necessario è già incluso in questa cartella.
+
+NOTE
+----
+- Non spostare o eliminare file dalla cartella: il programma
+  ne ha bisogno per funzionare.
+- Il file Excel deve trovarsi in una posizione accessibile
+  dal PC (rete, disco locale, chiavetta).
+- Compatibile con Windows 10 e Windows 11 (64 bit).

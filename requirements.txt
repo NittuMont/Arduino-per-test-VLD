@@ -1,0 +1,3 @@
+# Add required packages here
+# e.g. tkinter is built-in, but if using PyQt, pyqt5
+# requests, pyserial, etc. depending on communication method

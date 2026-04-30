@@ -1,0 +1,23 @@
+============================================================
+  Test VLD RFI - Versione Portabile
+============================================================
+
+ISTRUZIONI
+----------
+1. Copiare l'intera cartella "Portabile" sulla chiavetta USB
+   (o su qualsiasi altro supporto).
+
+2. Per avviare il programma:
+   - Fare doppio clic su "Avvia TestVLD.bat"
+   - Oppure fare doppio clic direttamente su "TestVLD.exe"
+
+3. NON è necessario avere Python installato sul PC.
+   Tutto il necessario è già incluso in questa cartella.
+
+NOTE
+----
+- Non spostare o eliminare file dalla cartella: il programma
+  ne ha bisogno per funzionare.
+- Il file Excel dei risultati può trovarsi ovunque sul PC
+  (viene selezionato dall'interfaccia del programma).
+- Compatibile con Windows 10 e Windows 11 (64 bit).
