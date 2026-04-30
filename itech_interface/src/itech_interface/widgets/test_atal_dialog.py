@@ -1,7 +1,10 @@
 from PyQt5 import QtWidgets, QtCore
 
 class TestATALDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off):
+    # Step timer AT+AL: ora con 100ms, 50ms, 30ms, 25ms
+    AT_AL_TIMER_STEPS_MS = [100, 50, 30, 25]
+
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
@@ -9,7 +12,8 @@ class TestATALDialog(QtWidgets.QDialog):
         self.safe_power_off = safe_power_off
         self.setWindowTitle("Test AT e AL")
         self._at_al_voltage = 88  # AT_AL_START_VOLTAGE
-        self._timer_interval = 1000  # AT_AL_TIMER_INTERVAL_MS
+        # timer_step_ms: valore scelto dall'utente, default 1000ms se non specificato
+        self._timer_interval = timer_step_ms if timer_step_ms is not None else 1000
         self._setup_ui()
 
     _POPUP_STYLESHEET = """
@@ -159,26 +163,38 @@ class TestATALDialog(QtWidgets.QDialog):
         self.status_label.setText(f"Tensione applicata: {self._at_al_voltage} V")
 
     def _cart1(self):
+        print(f"[DEBUG][AT+AL] _cart1 chiamato a V={self._at_al_voltage}")
         self._at_al_cart1_value = self._at_al_voltage
         self.cart1_label.setText(f"Cartellino1: {self._at_al_cart1_value} V")
         self.cart2_btn.setEnabled(True)
 
     def _cart2(self):
+        print(f"[DEBUG][AT+AL] _cart2 chiamato a V={self._at_al_voltage}")
+        # Blocca chiamate multiple
+        if hasattr(self, '_at_al_cart2_value') and self._at_al_cart2_value is not None:
+            print("[DEBUG][AT+AL] _cart2 già chiamato, ignoro.")
+            return
         self._at_al_cart2_value = self._at_al_voltage
         self.cart2_label.setText(f"Cartellino2: {self._at_al_cart2_value} V")
         if hasattr(self, '_timer') and self._timer.isActive():
+            print("[DEBUG][AT+AL] Timer fermato da _cart2.")
             self._timer.stop()
-        summary = (
-            f"Anomalia Tiristore e Limiti (AT+AL)\n"
-            f"Tensione Cartellino 1: {self._at_al_cart1_value} V\n"
-            f"Tensione Cartellino 2: {self._at_al_cart2_value} V\n"
-            f"Colonne: O={self._at_al_cart1_value}, Q=OK, R=OK, S=POS.\n\n"
-            f"Riarmare i cartellini."
-        )
-        self.write_to_excel(
-            lambda handler, row: handler.write_at_al_results(row, self._at_al_cart1_value),
-            summary=summary,
-            popup_to_close=self,
-        )
-        self.update_status("Test AT+AL completato", "ok")
-        self.accept()
+        # Salva il valore più basso tra i due cartellini (primo che scatta)
+        if self._at_al_cart1_value is not None and self._at_al_cart2_value is not None:
+            min_value = min(self._at_al_cart1_value, self._at_al_cart2_value)
+            print(f"[DEBUG][AT+AL] Salvo su excel: min_value={min_value}, cart1={self._at_al_cart1_value}, cart2={self._at_al_cart2_value}")
+            summary = (
+                f"Anomalia Tiristore e Limiti (AT+AL)\n"
+                f"Tensione Cartellino 1: {self._at_al_cart1_value} V\n"
+                f"Tensione Cartellino 2: {self._at_al_cart2_value} V\n"
+                f"Colonne: O={min_value}, Q=OK, R=OK, S=POS.\n\n"
+                f"Riarmare i cartellini."
+            )
+            self.write_to_excel(
+                lambda handler, row: handler.write_at_al_results(row, min_value),
+                summary=summary,
+                popup_to_close=self,
+            )
+            self.update_status("Test AT+AL completato", "ok")
+            print("[DEBUG][AT+AL] Dialog chiusa da _cart2.")
+            self.accept()

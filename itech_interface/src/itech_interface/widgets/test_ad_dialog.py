@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets, QtCore
 
 class TestADDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
@@ -9,7 +9,8 @@ class TestADDialog(QtWidgets.QDialog):
         self.safe_power_off = safe_power_off
         self.setWindowTitle("Anomalia Diodo (AD)")
         self._ad_voltage = 87  # AD_START_VOLTAGE
-        self._timer_interval = 1000  # AD_TIMER_INTERVAL_MS
+        # timer_step_ms: valore scelto dall'utente, default 1000ms se non specificato
+        self._timer_interval = timer_step_ms if timer_step_ms is not None else 1000
         self._setup_ui()
 
     _POPUP_STYLESHEET = """

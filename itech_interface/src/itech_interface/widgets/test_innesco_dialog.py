@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets, QtCore
 
 class TestInnescoDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
@@ -9,7 +9,8 @@ class TestInnescoDialog(QtWidgets.QDialog):
         self.safe_power_off = safe_power_off
         self.setWindowTitle("Innesco Tiristore")
         self._innesco_voltage = 89  # INNESCO_START_VOLTAGE
-        self._timer_interval = 500  # INNESCO_TIMER_INTERVAL_MS
+        # timer_step_ms: valore scelto dall'utente, default 500ms se non specificato
+        self._timer_interval = timer_step_ms if timer_step_ms is not None else 500
         self._diode_delay = 1000    # INNESCO_DIODE_DELAY_MS
         self._diode_offset = 10.55  # INNESCO_DIODE_OFFSET_V
         self._max_voltage = 120     # TEST_MAX_VOLTAGE
