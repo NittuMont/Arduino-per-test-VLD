@@ -1,7 +1,7 @@
 
 """GUI implementation using PyQt5."""
 from PyQt5 import QtWidgets, QtCore
-from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel
+from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel, BLEStatusBar, AsyncBLEWorker
 import time
 from .controller import PowerSupplyController
 from .excel_handler import ExcelHandler
@@ -90,6 +90,15 @@ class MeasurementWorker(QtCore.QThread):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    def _on_ble_connect_clicked(self):
+        # Avvia la connessione BLE al device selezionato
+        idx = self.ble_device_combo.currentIndex()
+        if hasattr(self, '_ble_devices') and self._ble_devices and 0 <= idx < len(self._ble_devices):
+            device = self._ble_devices[idx]
+            self.ble_status_bar.set_status('connecting')
+            self.ble_worker.connect_device(device)
+        else:
+            QtWidgets.QMessageBox.warning(self, "BLE", "Nessun dispositivo selezionato.")
 
     def __init__(self):
         print("[DEBUG] Costruttore MainWindow chiamato")
@@ -149,10 +158,155 @@ class MainWindow(QtWidgets.QMainWindow):
         right_col = QtWidgets.QVBoxLayout()
         right_col.setSpacing(14)
 
-        # Barra di stato alimentatore modulare
+        # ===================== WIDGET PRINCIPALI =====================
+        # Excel
+        self.excel_group = ExcelGroup()
+        left_col.addWidget(self.excel_group)
+        self.excel_group.browse_btn.clicked.connect(self._browse_excel)
+        self.excel_group.matricola_dec_btn.clicked.connect(self._matricola_decrement)
+        self.excel_group.matricola_inc_btn.clicked.connect(self._matricola_increment)
+        self.excel_path_edit = self.excel_group.excel_path_edit
+        self.matricola_edit = self.excel_group.matricola_edit
+        self.matricola_dec_btn = self.excel_group.matricola_dec_btn
+        self.matricola_inc_btn = self.excel_group.matricola_inc_btn
+
+        # Manual
+        self.manual_group = ManualGroup()
+        left_col.addWidget(self.manual_group)
+        self.voltage_100_btn = self.manual_group.voltage_100_btn
+        self.voltage_500_btn = self.manual_group.voltage_500_btn
+        self.voltage_100_btn.clicked.connect(self.on_test_100v)
+        self.voltage_500_btn.clicked.connect(self.on_test_500v)
+
+        # Test
+        self.test_group = TestGroup()
+        left_col.addWidget(self.test_group)
+        self.ad_btn = self.test_group.ad_btn
+        self.ad_al_btn = self.test_group.ad_al_btn
+        self.innesco_btn = self.test_group.innesco_btn
+        self.ad_btn.clicked.connect(self.on_test_anomalia_diodo)
+        self.ad_al_btn.clicked.connect(self.on_test_anomalia_tiristore_limiti)
+        self.innesco_btn.clicked.connect(self.on_test_innesco_tiristore)
+
+        # BLE
+        self.ble_group = BleGroup()
+        right_col.addWidget(self.ble_group)
+        self.ble_status_label = self.ble_group.ble_status_label
+        self.ble_scan_btn = self.ble_group.ble_scan_btn
+        self.ble_connect_btn = self.ble_group.ble_connect_btn
+        self.ble_connect_btn.clicked.connect(self._on_ble_connect_clicked)
+        self.ble_bypass_btn = self.ble_group.ble_bypass_btn
+        self.ble_device_combo = self.ble_group.ble_device_combo
+        self.ble_circuit_labels = self.ble_group.ble_circuit_labels
+
+        # Barra di stato alimentatore e BLE (in alto)
+        status_bars = QtWidgets.QHBoxLayout()
         self.psu_status_bar = PSUStatusBar()
         self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
-        left_col.addWidget(self.psu_status_bar)
+        status_bars.addWidget(self.psu_status_bar)
+        self.ble_status_bar = BLEStatusBar()
+        self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
+        status_bars.addWidget(self.ble_status_bar)
+        status_bars.addStretch()
+        left_col.insertLayout(0, status_bars)
+
+        # Result label e quit
+        self.result_label = ResultLabel()
+        left_col.addWidget(self.result_label)
+        left_col.addStretch()
+        self.quit_btn = QtWidgets.QPushButton("Esci")
+        self.quit_btn.setObjectName("quit_btn")
+        self.quit_btn.clicked.connect(self.close)
+        left_col.addWidget(self.quit_btn)
+
+        # Unisci colonne nel layout principale
+        main_layout.addLayout(left_col, stretch=3)
+        main_layout.addLayout(right_col, stretch=2)
+
+        # Widget centrale
+        central = QtWidgets.QWidget()
+        central.setLayout(main_layout)
+        self.setCentralWidget(central)
+
+        # Worker BLE (dopo che tutti i riferimenti sono pronti)
+        self.ble_worker = AsyncBLEWorker()
+        self.ble_worker.devices_found.connect(self._on_ble_devices_found)
+        self.ble_worker.error.connect(self._on_ble_error)
+        self.ble_worker.state_update.connect(self._on_ble_state_update)
+        self.ble_worker.connected.connect(self._on_ble_connected)
+        self.ble_worker.disconnected.connect(self._on_ble_disconnected)
+        self.ble_worker.start()
+        self._ble_connected = False
+        # Timer dinamici per test (default = 100%)
+        self._ad_timer_interval_ms = AD_TIMER_INTERVAL_MS
+        self._at_al_timer_interval_ms = AT_AL_TIMER_INTERVAL_MS
+        self._innesco_timer_interval_ms = INNESCO_TIMER_INTERVAL_MS
+
+        # attempt automatic connection once UI is shown
+        QtCore.QTimer.singleShot(0, self._start_psu_connect)
+        print("[DEBUG] QTimer.singleShot(0, self._start_psu_connect) chiamato")
+    def _on_ble_reconnect_clicked(self):
+        self.ble_status_bar.set_status('connecting')
+        self.ble_worker.scan_ble()
+
+    def _on_ble_devices_found(self, found):
+        # Aggiorna la combo BLE con i device trovati
+        self.ble_device_combo.clear()
+        self._ble_devices = []
+        arduino_name = "NanoESP32-RelayMonitor"
+        arduino_device = None
+        for d in found:
+            name = d.name if d.name else "<No Name>"
+            if name == arduino_name:
+                arduino_device = d
+                self.ble_device_combo.addItem(f"{name} [{d.address}]", d)
+                self._ble_devices.append(d)
+                break  # Solo il primo trovato
+        self.ble_connect_btn.setEnabled(bool(self._ble_devices))
+        if arduino_device:
+            self.ble_device_combo.setCurrentIndex(0)
+            self._on_ble_connect_clicked()  # Connessione automatica
+        else:
+            # Se non trovato, ripeti la scansione dopo 500 ms
+            QtCore.QTimer.singleShot(500, self.ble_worker.scan_ble)
+        self.ble_status_bar.set_status('fail' if not self._ble_devices else 'connecting')
+
+    def _on_ble_error(self, msg):
+        self.ble_status_bar.set_status('fail')
+        QtWidgets.QMessageBox.critical(self, "Errore BLE", msg)
+
+    def _on_ble_state_update(self, state_byte):
+        # Aggiorna le label dei circuiti
+        for i in range(6):
+            closed = (state_byte >> i) & 1
+            label = self.ble_circuit_labels[i]
+            if closed:
+                label.setText(self.ble_group.circuit_names[i] + ": CHIUSO")
+                label.setStyleSheet("background:#8f8; font-size:18px; border-radius:8px; padding:6px;")
+            else:
+                label.setText(self.ble_group.circuit_names[i] + ": APERTO")
+                label.setStyleSheet("background:#f88; font-size:18px; border-radius:8px; padding:6px;")
+
+    def _on_ble_connected(self):
+        self.ble_status_bar.set_status('ok')
+        self._ble_connected = True
+        # Riduci i timer al 10%
+        self._ad_timer_interval_ms = max(1, int(AD_TIMER_INTERVAL_MS * 0.1))
+        self._at_al_timer_interval_ms = max(1, int(AT_AL_TIMER_INTERVAL_MS * 0.1))
+        self._innesco_timer_interval_ms = max(1, int(INNESCO_TIMER_INTERVAL_MS * 0.1))
+
+    def _on_ble_disconnected(self):
+        self.ble_status_bar.set_status('fail')
+        self._ble_connected = False
+        # Ripristina timer normali
+        self._ad_timer_interval_ms = AD_TIMER_INTERVAL_MS
+        self._at_al_timer_interval_ms = AT_AL_TIMER_INTERVAL_MS
+        self._innesco_timer_interval_ms = INNESCO_TIMER_INTERVAL_MS
+        QtWidgets.QMessageBox.warning(self, "Connessione BLE", "Connessione BLE persa! Tentativo di riconnessione...")
+        # Forza la scansione e la riconnessione automatica
+        self._ble_devices = []
+        self.ble_device_combo.clear()
+        QtCore.QTimer.singleShot(500, self.ble_worker.scan_ble)
 
 
         # ...
@@ -340,13 +494,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumWidth(700)
 
         central = QtWidgets.QWidget()
-
-        # ============================================================
-        # Usa il widget modulare ExcelGroup
-        self.excel_group = ExcelGroup()
-        left_col.addWidget(self.excel_group)
-        # Collega segnali ai metodi MainWindow
-        self.excel_group.browse_btn.clicked.connect(self._browse_excel)
+        # ... (resto del setup UI)
         self.excel_group.matricola_dec_btn.clicked.connect(self._matricola_decrement)
         self.excel_group.matricola_inc_btn.clicked.connect(self._matricola_increment)
         self.excel_path_edit = self.excel_group.excel_path_edit
@@ -407,9 +555,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # attempt automatic connection once UI is shown
         QtCore.QTimer.singleShot(0, self._start_psu_connect)
         print("[DEBUG] QTimer.singleShot(0, self._start_psu_connect) chiamato")
-
-        central.setLayout(main_layout)
-        self.setCentralWidget(central)
 
 
     def on_measure(self):
@@ -1082,7 +1227,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # timer to increase voltage
         self._ad_timer = QtCore.QTimer(self)
         self._ad_timer.timeout.connect(self._ad_step)
-        self._ad_timer.start(AD_TIMER_INTERVAL_MS)
+        self._ad_timer.start(self._ad_timer_interval_ms)
 
     def _ad_step(self):
         if self._ad_voltage >= TEST_MAX_VOLTAGE:
@@ -1242,7 +1387,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # timer for increments
         self._at_al_timer = QtCore.QTimer(self)
         self._at_al_timer.timeout.connect(self._at_al_step)
-        self._at_al_timer.start(AT_AL_TIMER_INTERVAL_MS)
+        self._at_al_timer.start(self._at_al_timer_interval_ms)
 
     def _at_al_step(self):
         if self._at_al_voltage >= TEST_MAX_VOLTAGE:
@@ -1407,7 +1552,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._innesco_timer = QtCore.QTimer(self)
         self._innesco_timer.setSingleShot(True)
         self._innesco_timer.timeout.connect(self._innesco_step)
-        self._innesco_timer.start(INNESCO_TIMER_INTERVAL_MS)
+        self._innesco_timer.start(self._innesco_timer_interval_ms)
 
     def _innesco_step(self):
         # increment until measurement drops or max reached

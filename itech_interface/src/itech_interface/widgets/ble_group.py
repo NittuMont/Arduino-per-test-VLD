@@ -23,12 +23,12 @@ class BleGroup(QtWidgets.QGroupBox):
         layout.addWidget(self.ble_device_combo)
         self.ble_circuit_labels = []
         grid = QtWidgets.QGridLayout()
-        circuit_names = [
+        self.circuit_names = [
             "Relè AD OFF", "Relè AD ON", "Relè AL OFF",
             "Relè AL ON", "Relè AT OFF", "Relè AT ON"
         ]
         for i in range(6):
-            label = QtWidgets.QLabel(f"{circuit_names[i]}: ?")
+            label = QtWidgets.QLabel(f"{self.circuit_names[i]}: ?")
             label.setAlignment(QtCore.Qt.AlignCenter)
             label.setStyleSheet("background:#ccc; font-size:18px; border-radius:8px; padding:6px;")
             grid.addWidget(label, i // 3, i % 3)

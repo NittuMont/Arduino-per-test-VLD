@@ -10,7 +10,6 @@ def main():
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
-    input("Premi INVIO per chiudere...")
 
 
 if __name__ == "__main__":
