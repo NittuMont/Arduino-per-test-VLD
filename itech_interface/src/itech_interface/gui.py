@@ -4,6 +4,7 @@ from PyQt5 import QtWidgets, QtCore
 from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel, BLEStatusBar, AsyncBLEWorker
 from .handlers.ble_handlers import BLEHandlers
 import time
+import datetime
 from .controller import PowerSupplyController
 from .excel_handler import ExcelHandler
 from .network import ITechConnection
@@ -91,6 +92,19 @@ class MeasurementWorker(QtCore.QThread):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    class BLELogWindow(QtWidgets.QWidget):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle("Log tempi notifica BLE")
+            self.resize(600, 400)
+            layout = QtWidgets.QVBoxLayout(self)
+            self.text_edit = QtWidgets.QPlainTextEdit(self)
+            self.text_edit.setReadOnly(True)
+            layout.addWidget(self.text_edit)
+            self.setLayout(layout)
+        def set_log(self, log_lines):
+            self.text_edit.setPlainText("\n".join(log_lines))
+
     AT_AL_TIMER_INTERVAL_MS = 1000  # ms
     INNESCO_TIMER_INTERVAL_MS = 500  # ms
     AD_TIMER_INTERVAL_MS = 1000  # Imposta qui il valore di default desiderato
@@ -153,6 +167,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._connection_lost = False
         self._closing = False
         self._psu_attempt = 0
+        # Flag test attivi
+        self._ad_test_active = False
+        self._at_al_test_active = False
+        self._innesco_test_active = False
 
     def _on_psu_reconnect_clicked(self):
         self._start_psu_connect()
@@ -184,6 +202,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _setup_ui(self):
+        # Worker BLE (dopo che tutti i riferimenti sono pronti)
+        self.ble_worker = AsyncBLEWorker()
+        self.ble_worker.devices_found.connect(self.ble_handlers.on_ble_devices_found)
+        self.ble_worker.error.connect(self.ble_handlers.on_ble_error)
+        self.ble_worker.state_update.connect(self._on_ble_state_update_with_log)
+        self.ble_worker.connected.connect(self.ble_handlers.on_ble_connected)
+        self.ble_worker.disconnected.connect(self.ble_handlers.on_ble_disconnected)
+        self.ble_worker.start()
+        self._ble_connected_flag = False
+        # Timer dinamici per test (default = 100%)
+        self._ad_timer_interval_ms = AD_TIMER_INTERVAL_MS
+        self._at_al_timer_interval_ms = AT_AL_TIMER_INTERVAL_MS
+        self._innesco_timer_interval_ms = INNESCO_TIMER_INTERVAL_MS
+
+        # Avvio parallelo BLE scan e PSU connect appena la GUI è pronta (dopo ble_worker)
+        def _start_auto_connects():
+            print("[DEBUG] Avvio parallelo: ble_worker.scan_ble e _start_psu_connect")
+            self._start_ble_scan_with_status()
+            self._start_psu_connect()
+        QtCore.QTimer.singleShot(0, _start_auto_connects)
         # WARNING: Questa funzione DEVE essere chiamata SOLO dal costruttore!
         # NON chiamare mai _setup_ui dopo la creazione della finestra!
 
@@ -203,6 +241,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Excel
         self.excel_group = ExcelGroup()
         self.left_col.addWidget(self.excel_group)
+        print("[DEBUG] ExcelGroup aggiunto")
         self.excel_group.browse_btn.clicked.connect(self._browse_excel)
         self.excel_group.matricola_dec_btn.clicked.connect(self._matricola_decrement)
         self.excel_group.matricola_inc_btn.clicked.connect(self._matricola_increment)
@@ -214,6 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # ManualGroup
         self.manual_group = ManualGroup()
         self.left_col.addWidget(self.manual_group)
+        print("[DEBUG] ManualGroup aggiunto")
         self.voltage_100_btn = self.manual_group.voltage_100_btn
         self.voltage_500_btn = self.manual_group.voltage_500_btn
         self.voltage_100_btn.clicked.connect(self.on_test_100v)
@@ -222,6 +262,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # TestGroup
         self.test_group = TestGroup()
         self.left_col.addWidget(self.test_group)
+        print("[DEBUG] TestGroup aggiunto")
         self.ad_btn = self.test_group.ad_btn
         self.ad_al_btn = self.test_group.ad_al_btn
         self.innesco_btn = self.test_group.innesco_btn
@@ -232,6 +273,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # BLE Monitor
         self.ble_group = BleGroup()
         self.right_col.addWidget(self.ble_group)
+        print("[DEBUG] BleGroup aggiunto")
         self.ble_scan_btn = self.ble_group.ble_scan_btn
         self.ble_connect_btn = self.ble_group.ble_connect_btn
         self.ble_connect_btn.clicked.connect(self._on_ble_connect_clicked)
@@ -239,7 +281,87 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_device_combo = self.ble_group.ble_device_combo
         self.ble_circuit_labels = self.ble_group.ble_circuit_labels
 
-        # Barra di stato alimentatore e BLE (in alto)
+        # Crea la label step PRIMA del layout
+        self._step_interval_ms = 100  # default
+        self._step_interval_label = QtWidgets.QLabel(f"Step: {self._step_interval_ms} ms")
+        self._step_interval_label.setStyleSheet("font-weight: bold; margin-left: 16px;")
+        # Layout barra di stato alimentatore e BLE + label step
+        status_bars = QtWidgets.QVBoxLayout()
+        # Riga 1: PSU
+        psu_row = QtWidgets.QHBoxLayout()
+        self.psu_status_bar = PSUStatusBar()
+        self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
+        psu_row.addWidget(self.psu_status_bar)
+        psu_row.addStretch()
+        status_bars.addLayout(psu_row)
+        # Riga 2: BLE + label step
+        ble_row = QtWidgets.QHBoxLayout()
+        self.ble_status_bar = BLEStatusBar()
+        self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
+        ble_row.addWidget(self.ble_status_bar)
+        ble_row.addWidget(self._step_interval_label)
+        ble_row.addStretch()
+        status_bars.addLayout(ble_row)
+        self.left_col.insertLayout(0, status_bars)
+
+        # Result label e quit
+        self.result_label = ResultLabel()
+        self.left_col.addWidget(self.result_label)
+        self.left_col.addStretch()
+        self.quit_btn = QtWidgets.QPushButton("Esci")
+        self.quit_btn.setObjectName("quit_btn")
+        self.quit_btn.clicked.connect(self.close)
+        self.left_col.addWidget(self.quit_btn)
+
+        # Unisci colonne nel layout principale
+        self.main_layout.addLayout(self.left_col, stretch=3)
+        self.main_layout.addLayout(self.right_col, stretch=2)
+
+        # Widget centrale
+        central = QtWidgets.QWidget()
+        central.setLayout(self.main_layout)
+        self.setCentralWidget(central)
+        print("[DEBUG] setCentralWidget eseguito")
+
+        # SOLO ORA crea la barra menu impostazioni (dopo il central widget)
+        self.menu_bar = self.menuBar()
+        settings_menu = self.menu_bar.addMenu("Impostazioni")
+        step_menu = settings_menu.addMenu("Tempo step tensione")
+        # Azioni step
+        self._step_actions = {}
+        for ms in [100, 50, 25]:
+            action = QtWidgets.QAction(f"{ms} ms", self)
+            action.setCheckable(True)
+            if ms == self._step_interval_ms:
+                action.setChecked(True)
+            def make_handler(val):
+                return lambda: self._on_step_interval_selected(val)
+            action.triggered.connect(make_handler(ms))
+            step_menu.addAction(action)
+            self._step_actions[ms] = action
+
+        # Log tempi notifica BLE
+        self._ble_log = []  # lista di stringhe
+        self._ble_log_window = None
+        self._log_action = QtWidgets.QAction("Mostra log BLE", self)
+        self._log_action.triggered.connect(self._show_ble_log_window)
+        settings_menu.addAction(self._log_action)
+
+
+    def log_ble_notification(self, msg):
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        self._ble_log.append(f"[{timestamp}] {msg}")
+        # Limita la lunghezza del log per evitare overflow
+        if len(self._ble_log) > 1000:
+            self._ble_log = self._ble_log[-1000:]
+
+    def _show_ble_log_window(self):
+        if self._ble_log_window is None:
+            self._ble_log_window = self.BLELogWindow(self)
+        self._ble_log_window.set_log(self._ble_log)
+        self._ble_log_window.show()
+
+        # Layout barra di stato alimentatore e BLE + label step
         status_bars = QtWidgets.QHBoxLayout()
         self.psu_status_bar = PSUStatusBar()
         self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
@@ -248,7 +370,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
         status_bars.addWidget(self.ble_status_bar)
         status_bars.addStretch()
+        status_bars.addWidget(self._step_interval_label)
         self.left_col.insertLayout(0, status_bars)
+
+    def _on_step_interval_selected(self, ms):
+        for val, action in self._step_actions.items():
+            action.setChecked(val == ms)
+        self._step_interval_ms = ms
+        self._step_interval_label.setText(f"Step: {ms} ms")
+        # Aggiorna tutti i timer interval dei test
+        self._ad_timer_interval_ms = ms
+        self._at_al_timer_interval_ms = ms
+        self._innesco_timer_interval_ms = ms
+        print(f"[DEBUG] Step interval impostato a {ms} ms (tutti i test)")
 
         # Result label e quit
         self.result_label = ResultLabel()
@@ -272,7 +406,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_worker = AsyncBLEWorker()
         self.ble_worker.devices_found.connect(self.ble_handlers.on_ble_devices_found)
         self.ble_worker.error.connect(self.ble_handlers.on_ble_error)
-        self.ble_worker.state_update.connect(self.ble_handlers.on_ble_state_update)
+        self.ble_worker.state_update.connect(self._on_ble_state_update_with_log)
+
+    def _on_ble_state_update_with_log(self, *args, **kwargs):
+        # Logga il tempo di ricezione della notifica BLE
+        self.log_ble_notification("Notifica BLE ricevuta: " + str(args))
+        # Chiama il gestore originale
+        self.ble_handlers.on_ble_state_update(*args, **kwargs)
         self.ble_worker.connected.connect(self.ble_handlers.on_ble_connected)
         self.ble_worker.disconnected.connect(self.ble_handlers.on_ble_disconnected)
         self.ble_worker.start()
@@ -832,6 +972,7 @@ class MainWindow(QtWidgets.QMainWindow):
         popup.setMinimumWidth(min_width)
 
     def on_test_anomalia_diodo(self):
+        self._ad_test_active = True
         from .widgets.test_ad_dialog import TestADDialog
         dlg = TestADDialog(
             self,
@@ -843,6 +984,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.exec_()
 
     def _close_ad_test(self):
+        self._ad_test_active = False
         """Clean up AD test: stop timer, turn off output, close popup."""
         self._stop_existing_timer('_ad_timer')
         if self.ctrl:
@@ -929,6 +1071,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_status("Test AD completato", "ok")
 
     def on_test_anomalia_tiristore_limiti(self):
+        self._at_al_test_active = True
         from .widgets.test_atal_dialog import TestATALDialog
         dlg = TestATALDialog(
             self,
@@ -940,6 +1083,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.exec_()
 
     def _close_at_al_test(self):
+        self._at_al_test_active = False
         """Clean up AT+AL test: stop timer, turn off output, close popup."""
         self._stop_existing_timer('_at_al_timer')
         if self.ctrl:
@@ -1062,6 +1206,7 @@ class MainWindow(QtWidgets.QMainWindow):
             del self._ad_al_popup
 
     def on_test_innesco_tiristore(self):
+        self._innesco_test_active = True
         from .widgets.test_innesco_dialog import TestInnescoDialog
         dlg = TestInnescoDialog(
             self,
@@ -1073,6 +1218,7 @@ class MainWindow(QtWidgets.QMainWindow):
         dlg.exec_()
 
     def _begin_innesco(self):
+        self._innesco_test_active = False
         # actual test sequence after initial instruction
         self._pause_heartbeat()
         self._update_status("Test Innesco in corso...", "working")

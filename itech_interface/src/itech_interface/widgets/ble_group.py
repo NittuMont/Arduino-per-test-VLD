@@ -45,6 +45,7 @@ class BleGroup(QtWidgets.QGroupBox):
         for i, pos in enumerate(positions):
             label = QtWidgets.QLabel(f"{self.circuit_names[i]}: ?")
             label.setAlignment(QtCore.Qt.AlignCenter)
+            # Dimensioni e stile originali, nessuno stretch forzato
             label.setStyleSheet("background:#ccc; font-size:18px; border-radius:8px; padding:6px;")
             grid.addWidget(label, *pos)
             self.ble_circuit_labels.append(label)
