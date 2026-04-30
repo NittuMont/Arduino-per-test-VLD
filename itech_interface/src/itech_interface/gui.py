@@ -1,6 +1,7 @@
 
 """GUI implementation using PyQt5."""
 from PyQt5 import QtWidgets, QtCore
+from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel
 import time
 from .controller import PowerSupplyController
 from .excel_handler import ExcelHandler
@@ -148,23 +149,10 @@ class MainWindow(QtWidgets.QMainWindow):
         right_col = QtWidgets.QVBoxLayout()
         right_col.setSpacing(14)
 
-        # Semaforo stato alimentatore (in alto)
-        status_bar = QtWidgets.QHBoxLayout()
-        self.psu_status_light = QtWidgets.QLabel()
-        self.psu_status_light.setFixedSize(32, 32)
-        self.psu_status_light.setStyleSheet("background:#ccc; border-radius:16px; border:2px solid #888;")
-        self.psu_status_text = QtWidgets.QLabel("Alimentatore")
-        self.psu_status_text.setStyleSheet("font-size:13pt; font-weight:bold;")
-        status_bar.addWidget(self.psu_status_light)
-        status_bar.addWidget(self.psu_status_text)
-        self.psu_attempts_label = QtWidgets.QLabel("Tentativi: 0")
-        status_bar.addWidget(self.psu_attempts_label)
-        self.psu_reconnect_btn = QtWidgets.QPushButton("Riconnetti PSU")
-        self.psu_reconnect_btn.setToolTip("Tenta una nuova connessione manuale all'alimentatore")
-        self.psu_reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
-        status_bar.addWidget(self.psu_reconnect_btn)
-        status_bar.addStretch()
-        left_col.addLayout(status_bar)
+        # Barra di stato alimentatore modulare
+        self.psu_status_bar = PSUStatusBar()
+        self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
+        left_col.addWidget(self.psu_status_bar)
 
 
         # ...
@@ -354,144 +342,52 @@ class MainWindow(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
 
         # ============================================================
-        # [VISUAL] Sezione Excel — raggruppata in un QGroupBox
-        # ============================================================
-        excel_group = QtWidgets.QGroupBox("Configurazione Excel")
-        excel_group_layout = QtWidgets.QVBoxLayout()
+        # Usa il widget modulare ExcelGroup
+        self.excel_group = ExcelGroup()
+        left_col.addWidget(self.excel_group)
+        # Collega segnali ai metodi MainWindow
+        self.excel_group.browse_btn.clicked.connect(self._browse_excel)
+        self.excel_group.matricola_dec_btn.clicked.connect(self._matricola_decrement)
+        self.excel_group.matricola_inc_btn.clicked.connect(self._matricola_increment)
+        self.excel_path_edit = self.excel_group.excel_path_edit
+        self.matricola_edit = self.excel_group.matricola_edit
+        self.matricola_dec_btn = self.excel_group.matricola_dec_btn
+        self.matricola_inc_btn = self.excel_group.matricola_inc_btn
 
-        # Excel file selection
-        excel_layout = QtWidgets.QHBoxLayout()
-        excel_label = QtWidgets.QLabel("File Excel:")
-        excel_layout.addWidget(excel_label)
-        self.excel_path_edit = QtWidgets.QLineEdit()
-        self.excel_path_edit.setPlaceholderText("Nessun file selezionato")
-        self.excel_path_edit.setReadOnly(True)
-        excel_layout.addWidget(self.excel_path_edit)
-        self.browse_btn = QtWidgets.QPushButton("Sfoglia")
-        self.browse_btn.setObjectName("browse_btn")  # [VISUAL] per styling
-        self.browse_btn.clicked.connect(self._browse_excel)
-        excel_layout.addWidget(self.browse_btn)
-        excel_group_layout.addLayout(excel_layout)
-
-        # Matricola input
-        matricola_layout = QtWidgets.QHBoxLayout()
-        matricola_label = QtWidgets.QLabel("Matricola:")
-        matricola_layout.addWidget(matricola_label)
-        self.matricola_edit = QtWidgets.QLineEdit()
-        self.matricola_edit.setPlaceholderText("Inserire matricola...")
-        matricola_layout.addWidget(self.matricola_edit)
-        self.matricola_dec_btn = QtWidgets.QPushButton("−")
-        self.matricola_dec_btn.setObjectName("browse_btn")  # [VISUAL] stile compatto
-        self.matricola_dec_btn.setFixedWidth(50)
-        self.matricola_dec_btn.clicked.connect(self._matricola_decrement)
-        matricola_layout.addWidget(self.matricola_dec_btn)
-        self.matricola_inc_btn = QtWidgets.QPushButton("+")
-        self.matricola_inc_btn.setObjectName("browse_btn")  # [VISUAL] stile compatto
-        self.matricola_inc_btn.setFixedWidth(50)
-        self.matricola_inc_btn.clicked.connect(self._matricola_increment)
-        matricola_layout.addWidget(self.matricola_inc_btn)
-        excel_group_layout.addLayout(matricola_layout)
-
-        excel_group.setLayout(excel_group_layout)
-        left_col.addWidget(excel_group)
-
-        # ============================================================
-        # [VISUAL] Sezione prove di isolamento — raggruppata
-        # ============================================================
-        manual_group = QtWidgets.QGroupBox("Prove di Isolamento")
-        manual_layout = QtWidgets.QHBoxLayout()
-
-        # 100 V isolation test button
-        self.voltage_100_btn = QtWidgets.QPushButton("Prova 100 V")
+        # Usa il widget modulare ManualGroup
+        self.manual_group = ManualGroup()
+        left_col.addWidget(self.manual_group)
+        self.voltage_100_btn = self.manual_group.voltage_100_btn
+        self.voltage_500_btn = self.manual_group.voltage_500_btn
         self.voltage_100_btn.clicked.connect(self.on_test_100v)
-        manual_layout.addWidget(self.voltage_100_btn)
-
-        # 500 V isolation test button
-        self.voltage_500_btn = QtWidgets.QPushButton("Prova 500 V")
         self.voltage_500_btn.clicked.connect(self.on_test_500v)
-        manual_layout.addWidget(self.voltage_500_btn)
 
-        manual_group.setLayout(manual_layout)
-        left_col.addWidget(manual_group)
-
-        # ============================================================
-        # [VISUAL] Sezione test — raggruppata in un QGroupBox
-        # ============================================================
-        test_group = QtWidgets.QGroupBox("Routine di Test")
-        test_layout = QtWidgets.QVBoxLayout()
-
-        # real test procedure buttons (labels requested by user)
-        self.ad_btn = QtWidgets.QPushButton("Anomalia Diodo (AD)")
+        # Usa il widget modulare TestGroup
+        self.test_group = TestGroup()
+        left_col.addWidget(self.test_group)
+        self.ad_btn = self.test_group.ad_btn
+        self.ad_al_btn = self.test_group.ad_al_btn
+        self.innesco_btn = self.test_group.innesco_btn
         self.ad_btn.clicked.connect(self.on_test_anomalia_diodo)
-        test_layout.addWidget(self.ad_btn)
-
-        self.ad_al_btn = QtWidgets.QPushButton("Anomalia Tiristore e Limiti (AT e AL)")
         self.ad_al_btn.clicked.connect(self.on_test_anomalia_tiristore_limiti)
-        test_layout.addWidget(self.ad_al_btn)
-
-        self.innesco_btn = QtWidgets.QPushButton("Innesco Tiristore")
         self.innesco_btn.clicked.connect(self.on_test_innesco_tiristore)
-        test_layout.addWidget(self.innesco_btn)
-
-        test_group.setLayout(test_layout)
-        left_col.addWidget(test_group)
 
         # ============================================================
 
-        # ============================================================
-        # [VISUAL] Sezione Monitor BLE — nuova
-        # ============================================================
-        ble_group = QtWidgets.QGroupBox("Monitor BLE 6 Circuiti")
-        ble_layout = QtWidgets.QVBoxLayout()
-        self.ble_status_label = QtWidgets.QLabel("BLE non connesso")
-        self.ble_status_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.ble_status_label.setStyleSheet("background:#ffe0e0; font-size:15pt; border-radius:6px; padding:8px;")
-        ble_layout.addWidget(self.ble_status_label)
-        ble_btn_layout = QtWidgets.QHBoxLayout()
-        self.ble_scan_btn = QtWidgets.QPushButton("Scansiona BLE")
-        ble_btn_layout.addWidget(self.ble_scan_btn)
-        self.ble_connect_btn = QtWidgets.QPushButton("Connetti BLE")
-        self.ble_connect_btn.setEnabled(False)
-        ble_btn_layout.addWidget(self.ble_connect_btn)
-        self.ble_bypass_btn = QtWidgets.QPushButton("Bypass BLE (solo alimentatore)")
-        self.ble_bypass_btn.setCheckable(True)
-        ble_btn_layout.addWidget(self.ble_bypass_btn)
-        ble_layout.addLayout(ble_btn_layout)
-        self.ble_device_combo = QtWidgets.QComboBox()
-        self.ble_device_combo.setEditable(False)
-        ble_layout.addWidget(self.ble_device_combo)
-        # Stato circuiti (6 label)
-        self.ble_circuit_labels = []
-        grid = QtWidgets.QGridLayout()
-        circuit_names = [
-            "Relè AD OFF", "Relè AD ON", "Relè AL OFF",
-            "Relè AL ON", "Relè AT OFF", "Relè AT ON"
-        ]
-        for i in range(6):
-            label = QtWidgets.QLabel(f"{circuit_names[i]}: ?")
-            label.setAlignment(QtCore.Qt.AlignCenter)
-            label.setStyleSheet("background:#ccc; font-size:18px; border-radius:8px; padding:6px;")
-            grid.addWidget(label, i // 3, i % 3)
-            self.ble_circuit_labels.append(label)
-        ble_layout.addLayout(grid)
-        ble_group.setLayout(ble_layout)
-        right_col.addWidget(ble_group)
+        # Usa il widget modulare BleGroup
+        self.ble_group = BleGroup()
+        right_col.addWidget(self.ble_group)
+        self.ble_status_label = self.ble_group.ble_status_label
+        self.ble_scan_btn = self.ble_group.ble_scan_btn
+        self.ble_connect_btn = self.ble_group.ble_connect_btn
+        self.ble_bypass_btn = self.ble_group.ble_bypass_btn
+        self.ble_device_combo = self.ble_group.ble_device_combo
+        self.ble_circuit_labels = self.ble_group.ble_circuit_labels
 
         # [VISUAL] Barra di stato in basso
         # ============================================================
 
-        self.result_label = QtWidgets.QLabel("Pronto")
-        self.result_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.result_label.setStyleSheet("""
-            QLabel {
-                background-color: #e8e8e8;
-                border-radius: 6px;
-                padding: 10px;
-                font-size: 15pt;
-                font-weight: bold;
-                color: #555;
-            }
-        """)
+        self.result_label = ResultLabel()
         left_col.addWidget(self.result_label)
         left_col.addStretch()
         self.quit_btn = QtWidgets.QPushButton("Esci")
@@ -529,31 +425,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._measure_worker.start()
 
     def _update_status(self, text: str, level: str = "info"):
-        """Update the status label with coloured background.
-
-        *level* can be: 'info' (grey), 'ok' (green), 'error' (red),
-        'working' (orange).  [VISUAL] — rimuovere questo metodo e
-        sostituire le chiamate con semplice setText per tornare allo
-        stile precedente.
-        """
-        colours = {
-            "info":    ("#e8e8e8", "#555"),
-            "ok":      ("#dff6dd", "#107c10"),
-            "error":   ("#fde7e9", "#d13438"),
-            "working": ("#fff4ce", "#8a6d00"),
-        }
-        bg, fg = colours.get(level, colours["info"])
-        self.result_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {bg};
-                border-radius: 6px;
-                padding: 10px;
-                font-size: 15pt;
-                font-weight: bold;
-                color: {fg};
-            }}
-        """)
-        self.result_label.setText(text)
+        self.result_label.set_status(text, level)
 
     def _start_psu_connect(self):
         print("[DEBUG] _start_psu_connect() chiamato")
@@ -575,21 +447,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_psu_attempts()
 
     def _set_psu_status(self, state):
-        if state == 'ok':
-            self.psu_status_light.setStyleSheet("background:#4caf50; border-radius:16px; border:2px solid #222;")
-            self.psu_status_text.setText("Alimentatore: Connesso")
-        elif state == 'connecting':
-            self.psu_status_light.setStyleSheet("background:#ffd600; border-radius:16px; border:2px solid #888;")
-            self.psu_status_text.setText("Alimentatore: Connessione...")
-        elif state == 'fail':
-            self.psu_status_light.setStyleSheet("background:#d13438; border-radius:16px; border:2px solid #222;")
-            self.psu_status_text.setText("Alimentatore: Non connesso")
-        else:
-            self.psu_status_light.setStyleSheet("background:#ccc; border-radius:16px; border:2px solid #888;")
-            self.psu_status_text.setText("Alimentatore")
+        self.psu_status_bar.set_status(state)
 
     def _update_psu_attempts(self):
-        self.psu_attempts_label.setText(f"Tentativi: {self._psu_attempt}")
+        self.psu_status_bar.set_attempts(self._psu_attempt)
 
     def _on_psu_connect_status(self, status, conn, ctrl):
         print(f"[DEBUG] _on_psu_connect_status(status={status}, conn={conn}, ctrl={ctrl})")
@@ -871,6 +732,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _start_100v_test(self):
         """Set 100 V, output on, then measure current after delay."""
         if not self.ctrl:
+            QtWidgets.QMessageBox.warning(
+                self, "Errore", "Collegare l'alimentatore prima di avviare la prova 100 V."
+            )
             return
         self._pause_heartbeat()
         self._update_status("Prova 100 V in corso...", "working")
@@ -984,6 +848,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _start_500v_test(self):
         """Set 500 V, output on, then measure current after delay."""
         if not self.ctrl:
+            QtWidgets.QMessageBox.warning(
+                self, "Errore", "Collegare l'alimentatore prima di avviare la prova 500 V."
+            )
             return
         self._pause_heartbeat()
         self._update_status("Prova 500 V in corso...", "working")
@@ -1196,6 +1063,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _start_ad_test(self):
         # start the AD test sequence
         if not self.ctrl:
+            QtWidgets.QMessageBox.warning(
+                self, "Errore", "Collegare l'alimentatore prima di avviare il test Anomalia Diodo (AD)."
+            )
             return
         # Stop any leftover timer from a previous run
         self._stop_existing_timer('_ad_timer')
@@ -1346,6 +1216,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _start_at_al_test(self):
         if not self.ctrl:
+            QtWidgets.QMessageBox.warning(
+                self, "Errore", "Collegare l'alimentatore prima di avviare il test AT+AL."
+            )
             return
         # Stop any leftover timer from a previous run
         self._stop_existing_timer('_at_al_timer')
@@ -1442,6 +1315,12 @@ class MainWindow(QtWidgets.QMainWindow):
             del self._ad_al_popup
 
     def on_test_innesco_tiristore(self):
+        # Blocca se alimentatore non collegato
+        if not self.ctrl:
+            QtWidgets.QMessageBox.warning(
+                self, "Errore", "Collegare l'alimentatore prima di avviare il test Innesco Tiristore."
+            )
+            return
         # preliminary popup instructing connection of white wire
         popup = QtWidgets.QDialog(self)
         popup.setWindowTitle("Innesco Tiristore")
