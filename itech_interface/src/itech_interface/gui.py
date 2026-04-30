@@ -1,10 +1,38 @@
-"""GUI implementation using PyQt5."""
 
+"""GUI implementation using PyQt5."""
 from PyQt5 import QtWidgets, QtCore
 import time
 from .controller import PowerSupplyController
 from .excel_handler import ExcelHandler
 from .network import ITechConnection
+
+# Thread worker per connessione asincrona alimentatore
+class PSUConnectWorker(QtCore.QThread):
+    status = QtCore.pyqtSignal(str, object, object)  # status, conn, ctrl
+    attempt = QtCore.pyqtSignal(int)  # numero tentativo
+    def __init__(self, host):
+        super().__init__()
+        self.host = host
+    def run(self):
+        print(f"[DEBUG][PSUConnectWorker] run() avviato per host {self.host}")
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            self.attempt.emit(attempt)
+            print(f"[DEBUG][PSUConnectWorker] Tentativo {attempt} di connessione...")
+            try:
+                conn = ITechConnection(self.host)
+                print("[DEBUG][PSUConnectWorker] ITechConnection creato")
+                conn.connect()
+                print("[DEBUG][PSUConnectWorker] conn.connect() OK")
+                ctrl = PowerSupplyController(conn)
+                print("[DEBUG][PSUConnectWorker] PowerSupplyController creato")
+                self.status.emit('success', conn, ctrl)
+                print("[DEBUG][PSUConnectWorker] status.emit('success', ...) inviato")
+                return
+            except Exception as e:
+                print(f"[DEBUG][PSUConnectWorker] Eccezione al tentativo {attempt}: {e}")
+        self.status.emit('fail', None, None)
+        print("[DEBUG][PSUConnectWorker] status.emit('fail', ...) inviato dopo 3 tentativi")
 
 # ---------------------------------------------------------------------------
 # Configuration constants
@@ -62,18 +90,21 @@ class MeasurementWorker(QtCore.QThread):
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
+        print("[DEBUG] Costruttore MainWindow chiamato")
         super().__init__()
+        print("[DEBUG] super().__init__() ok")
         self.setWindowTitle("Test dei VLD RFI - Interfaccia Operatore")
         self._setup_ui()
+        print("[DEBUG] _setup_ui() ok")
         self.conn = None
         self.ctrl = None
-        # worker instance reused for measurements (created each time)
         self._measure_worker = None
-        # Periodic heartbeat timer to detect connection loss
         self._heartbeat_timer = QtCore.QTimer(self)
         self._heartbeat_timer.timeout.connect(self._heartbeat_check)
         self._connection_lost = False
-        self._closing = False  # flag to prevent operations during shutdown
+        self._closing = False
+        self._psu_attempt = 0
+
 
     # ------------------------------------------------------------------
     # Window close – stop all timers and disconnect immediately
@@ -99,6 +130,26 @@ class MainWindow(QtWidgets.QMainWindow):
         event.accept()       # let Qt close the window
 
     def _setup_ui(self):
+
+        # Layout principale
+        layout = QtWidgets.QVBoxLayout()
+        layout.setSpacing(14)
+        layout.setContentsMargins(24, 24, 24, 24)
+
+        # Semaforo stato alimentatore (inserito in alto)
+        status_bar = QtWidgets.QHBoxLayout()
+        self.psu_status_light = QtWidgets.QLabel()
+        self.psu_status_light.setFixedSize(32, 32)
+        self.psu_status_light.setStyleSheet("background:#ccc; border-radius:16px; border:2px solid #888;")
+        self.psu_status_text = QtWidgets.QLabel("Alimentatore")
+        self.psu_status_text.setStyleSheet("font-size:13pt; font-weight:bold;")
+        status_bar.addWidget(self.psu_status_light)
+        status_bar.addWidget(self.psu_status_text)
+        self.psu_attempts_label = QtWidgets.QLabel("Tentativi: 0")
+        status_bar.addWidget(self.psu_attempts_label)
+        status_bar.addStretch()
+        layout.addLayout(status_bar)
+
         # ----------------------------------------------------------------
         # [VISUAL] Global stylesheet — può essere rimosso/modificato per
         # tornare allo stile di default Qt.
@@ -183,9 +234,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumWidth(700)
 
         central = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout()
-        layout.setSpacing(14)
-        layout.setContentsMargins(24, 24, 24, 24)
 
         # ============================================================
         # [VISUAL] Sezione Excel — raggruppata in un QGroupBox
@@ -337,7 +385,8 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.quit_btn)
 
         # attempt automatic connection once UI is shown
-        QtCore.QTimer.singleShot(0, self._auto_connect)
+        QtCore.QTimer.singleShot(0, self._start_psu_connect)
+        print("[DEBUG] QTimer.singleShot(0, self._start_psu_connect) chiamato")
 
         central.setLayout(layout)
         self.setCentralWidget(central)
@@ -382,21 +431,58 @@ class MainWindow(QtWidgets.QMainWindow):
         """)
         self.result_label.setText(text)
 
-    def _auto_connect(self):
-        # always attempt to connect to the default address
-        host = DEFAULT_HOST
-        self.conn = ITechConnection(host)
-        try:
-            self.conn.connect()
-            self.ctrl = PowerSupplyController(self.conn)
+    def _start_psu_connect(self):
+        print("[DEBUG] _start_psu_connect() chiamato")
+        if hasattr(self, '_psu_worker') and self._psu_worker is not None and self._psu_worker.isRunning():
+            print("[DEBUG] Worker già in esecuzione, skip.")
+            return
+        print("[DEBUG] Creo e avvio PSUConnectWorker...")
+        self._psu_attempt = 0
+        self._set_psu_status('connecting')
+        self._update_psu_attempts()
+        self._psu_worker = PSUConnectWorker(DEFAULT_HOST)
+        self._psu_worker.status.connect(self._on_psu_connect_status)
+        self._psu_worker.attempt.connect(self._on_psu_attempt)
+        self._psu_worker.start()
+        print("[DEBUG] PSUConnectWorker avviato.")
+
+    def _on_psu_attempt(self, attempt):
+        self._psu_attempt = attempt
+        self._update_psu_attempts()
+
+    def _set_psu_status(self, state):
+        if state == 'ok':
+            self.psu_status_light.setStyleSheet("background:#4caf50; border-radius:16px; border:2px solid #222;")
+            self.psu_status_text.setText("Alimentatore: Connesso")
+        elif state == 'connecting':
+            self.psu_status_light.setStyleSheet("background:#ffd600; border-radius:16px; border:2px solid #888;")
+            self.psu_status_text.setText("Alimentatore: Connessione...")
+        elif state == 'fail':
+            self.psu_status_light.setStyleSheet("background:#d13438; border-radius:16px; border:2px solid #222;")
+            self.psu_status_text.setText("Alimentatore: Non connesso")
+        else:
+            self.psu_status_light.setStyleSheet("background:#ccc; border-radius:16px; border:2px solid #888;")
+            self.psu_status_text.setText("Alimentatore")
+
+    def _update_psu_attempts(self):
+        self.psu_attempts_label.setText(f"Tentativi: {self._psu_attempt}")
+
+    def _on_psu_connect_status(self, status, conn, ctrl):
+        print(f"[DEBUG] _on_psu_connect_status(status={status}, conn={conn}, ctrl={ctrl})")
+        if status == 'success':
+            self.conn = conn
+            self.ctrl = ctrl
             self._connection_lost = False
+            self._set_psu_status('ok')
             self._update_status("Pronto", "ok")
-            # Start heartbeat timer
             self._heartbeat_timer.start(HEARTBEAT_INTERVAL_MS)
-        except Exception as e:
+        else:
+            if self._psu_attempt < 3:
+                self._set_psu_status('connecting')
+            else:
+                self._set_psu_status('fail')
             self._connection_lost = True
-            self._update_status(f"Errore: {e}", "error")
-            # Retry connection periodically even if initial connect fails
+            self._update_status("Errore: impossibile connettersi all'alimentatore", "error")
             self._heartbeat_timer.start(HEARTBEAT_INTERVAL_MS)
 
     def _heartbeat_check(self):

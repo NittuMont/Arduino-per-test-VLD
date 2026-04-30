@@ -7,5 +7,6 @@ if exist ".venv\Scripts\activate.bat" (
 
 REM Launch via module entry point; change directory to the package root to ensure imports work
 cd /d "%~dp0\itech_interface"
-REM run the GUI in a background window (minimized)
-start "" /MIN python -m itech_interface.main
+REM run the GUI in the current window and keep it open after exit
+python -m itech_interface.main
+pause
