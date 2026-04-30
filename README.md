@@ -1,38 +1,29 @@
-# ITECH Power Supply Controller
+# Arduino per test VLD
 
-This project provides a Python interface to control an ITECH IT6018C-1500-30 power supply over LAN. The application lets users run scheduled tests via button clicks.
+Questo progetto contiene:
+- **Firmware PlatformIO** per Arduino Nano ESP32 che espone un servizio BLE custom per il monitoraggio di 6 circuiti tramite protocollo READY+STATE.
+- **GUI Python (PyQt5 + bleak)** per PC che si connette via BLE, invia il comando READY e riceve notifiche di stato in tempo reale.
 
-## Features
+## Funzionalità principali
+- Protocollo minimale: la GUI invia READY, Arduino risponde con lo stato dei circuiti.
+- Notifiche BLE affidabili e sincronizzazione all'avvio.
+- Codice pulito, facilmente estendibile.
 
-- Connect directly to the power supply over Ethernet
-- Simple GUI for triggering tests
-- Basic logging of results
+## Struttura
+- `src/` : Firmware PlatformIO per Arduino Nano ESP32
+- `itech_interface/` : GUI Python per monitoraggio BLE
 
-## Getting Started
+## Come usare
+1. Carica il firmware su Arduino Nano ESP32 tramite PlatformIO.
+2. Avvia la GUI Python (`ble_monitor_gui.py`) su PC.
+3. Connetti via BLE, invia READY, ricevi lo stato dei circuiti.
 
-1. Create a Python virtual environment:
-   ```bash
-   python -m venv venv
-   ```
-2. Activate the environment:
-   - Windows: `venv\Scripts\activate`
-   - Unix/Mac: `source venv/bin/activate`
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Run the application:
-   ```bash
-   python -m src.main
-   ```
+## Badge
+Il badge è un piccolo "bollino" visuale che mostra lo stato del progetto (ad esempio: build passing, versione, licenza, ecc.) direttamente nel README. Aiuta a capire a colpo d'occhio se il progetto è attivamente mantenuto, se la build è stabile, ecc.
 
-## Structure
+Esempio di badge build (GitHub Actions):
 
-- `src/` contains application code
-- `tests/` for unit tests
+![Build Status](https://github.com/NittuMont/Arduino-per-test-VLD/actions/workflows/main.yml/badge.svg)
 
-## TODO
-
-- Implement Telnet/HTTP commands for ITECH supply
-- Design GUI using Tkinter or PyQt
+> Per attivare il badge build, aggiungi un workflow GitHub Actions (ad esempio per PlatformIO o Python).
 
