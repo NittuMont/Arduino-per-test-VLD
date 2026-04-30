@@ -1,13 +1,17 @@
 from PyQt5 import QtWidgets, QtCore
 
 class BleGroup(QtWidgets.QGroupBox):
+        # Legenda associazione circuiti ↔ pin Arduino:
+        # "Relè AT ON"   → D12
+        # "Relè AL ON"   → D7
+        # "Relè AD ON"   → D3
+        # "Relè AT OFF"  → D11
+        # "Relè AL OFF"  → D6
+        # "Relè AD OFF"  → D2
     def __init__(self, parent=None):
         super().__init__("Monitor BLE 6 Circuiti", parent)
         layout = QtWidgets.QVBoxLayout()
-        self.ble_status_label = QtWidgets.QLabel("BLE non connesso")
-        self.ble_status_label.setAlignment(QtCore.Qt.AlignCenter)
-        self.ble_status_label.setStyleSheet("background:#ffe0e0; font-size:15pt; border-radius:6px; padding:8px;")
-        layout.addWidget(self.ble_status_label)
+        # RIMOSSO: self.ble_status_label
         ble_btn_layout = QtWidgets.QHBoxLayout()
         self.ble_scan_btn = QtWidgets.QPushButton("Scansiona BLE")
         ble_btn_layout.addWidget(self.ble_scan_btn)
@@ -23,15 +27,26 @@ class BleGroup(QtWidgets.QGroupBox):
         layout.addWidget(self.ble_device_combo)
         self.ble_circuit_labels = []
         grid = QtWidgets.QGridLayout()
+        # Nuovo ordine richiesto:
+        # Sinistra: AT ON (0,0), AL ON (1,0), AD ON (2,0)
+        # Destra:   AT OFF (0,1), AL OFF (1,1), AD OFF (2,1)
         self.circuit_names = [
-            "Relè AD OFF", "Relè AD ON", "Relè AL OFF",
-            "Relè AL ON", "Relè AT OFF", "Relè AT ON"
+            "Relè AT ON", "Relè AL ON", "Relè AD ON",
+            "Relè AT OFF", "Relè AL OFF", "Relè AD OFF"
         ]
-        for i in range(6):
+        positions = [
+            (0, 0),  # AT ON
+            (1, 0),  # AL ON
+            (2, 0),  # AD ON
+            (0, 1),  # AT OFF
+            (1, 1),  # AL OFF
+            (2, 1),  # AD OFF
+        ]
+        for i, pos in enumerate(positions):
             label = QtWidgets.QLabel(f"{self.circuit_names[i]}: ?")
             label.setAlignment(QtCore.Qt.AlignCenter)
             label.setStyleSheet("background:#ccc; font-size:18px; border-radius:8px; padding:6px;")
-            grid.addWidget(label, i // 3, i % 3)
+            grid.addWidget(label, *pos)
             self.ble_circuit_labels.append(label)
         layout.addLayout(grid)
         self.setLayout(layout)
