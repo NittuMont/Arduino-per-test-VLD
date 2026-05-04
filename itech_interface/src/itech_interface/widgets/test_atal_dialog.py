@@ -58,6 +58,8 @@ class TestATALDialog(QtWidgets.QDialog):
         self.close_btn.clicked.connect(self.reject)
         self.setLayout(layout)
         self.start_btn.clicked.connect(self._start_test)
+        self.start_btn.setDefault(True)
+        self.start_btn.setFocus()
         self.cart1_btn.clicked.connect(self._cart1)
         self.cart2_btn.clicked.connect(self._cart2)
 

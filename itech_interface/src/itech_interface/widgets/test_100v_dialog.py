@@ -42,6 +42,8 @@ class Test100VDialog(QtWidgets.QDialog):
 
         self.setLayout(layout)
         self.start_btn.clicked.connect(self._start_test)
+        self.start_btn.setDefault(True)
+        self.start_btn.setFocus()
 
     def _start_test(self):
         if not self.ctrl:

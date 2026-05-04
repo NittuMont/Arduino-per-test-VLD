@@ -43,6 +43,8 @@ class TestInnescoDialog(QtWidgets.QDialog):
         self.exit_btn.clicked.connect(self.reject)
         self.setLayout(layout)
         self.start_btn.clicked.connect(self._start_test)
+        self.start_btn.setDefault(True)
+        self.start_btn.setFocus()
 
     def _start_test(self):
         if not self.ctrl:

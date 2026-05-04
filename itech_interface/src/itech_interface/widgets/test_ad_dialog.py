@@ -46,6 +46,8 @@ class TestADDialog(QtWidgets.QDialog):
         self.close_btn.clicked.connect(self.reject)
         self.setLayout(layout)
         self.start_btn.clicked.connect(self._start_test)
+        self.start_btn.setDefault(True)
+        self.start_btn.setFocus()
         self.trip_btn.clicked.connect(self._ad_tripped)
 
     def _start_test(self):
