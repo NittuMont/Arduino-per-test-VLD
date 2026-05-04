@@ -162,39 +162,66 @@ class TestATALDialog(QtWidgets.QDialog):
         self.ctrl.set_voltage(self._at_al_voltage)
         self.status_label.setText(f"Tensione applicata: {self._at_al_voltage} V")
 
+    # ------------------------------------------------------------------
+    # Interfaccia pubblica per BLE handler e bottoni manuali
+    # ------------------------------------------------------------------
+
+    def on_relay_tripped(self, relay_name, voltage=None):
+        """Chiamato dal BLE handler quando un relè (AL o AT) scatta.
+
+        relay_name: 'AL' o 'AT'
+        voltage:    tensione impostata al momento dello scatto (None = usa valore corrente)
+        """
+        print(f"[DEBUG][AT+AL] on_relay_tripped: relay={relay_name}, V={voltage}")
+        self._record_trip(voltage)
+
     def _cart1(self):
-        print(f"[DEBUG][AT+AL] _cart1 chiamato a V={self._at_al_voltage}")
-        self._at_al_cart1_value = self._at_al_voltage
-        self.cart1_label.setText(f"Cartellino1: {self._at_al_cart1_value} V")
-        self.cart2_btn.setEnabled(True)
+        """Bottone manuale primo scatto."""
+        self._record_trip()
 
     def _cart2(self):
-        print(f"[DEBUG][AT+AL] _cart2 chiamato a V={self._at_al_voltage}")
-        # Blocca chiamate multiple
-        if hasattr(self, '_at_al_cart2_value') and self._at_al_cart2_value is not None:
-            print("[DEBUG][AT+AL] _cart2 già chiamato, ignoro.")
-            return
-        self._at_al_cart2_value = self._at_al_voltage
-        self.cart2_label.setText(f"Cartellino2: {self._at_al_cart2_value} V")
+        """Bottone manuale secondo scatto."""
+        self._record_trip()
+
+    def _record_trip(self, voltage=None):
+        """Registra uno scatto. Primo → cart1, secondo → cart2 e finalizza.
+
+        voltage: tensione al momento dello scatto. Se None usa self._at_al_voltage.
+        """
+        v = voltage if voltage is not None else self._at_al_voltage
+        if self._at_al_cart1_value is None:
+            self._at_al_cart1_value = v
+            self.cart1_label.setText(f"Cartellino1: {v} V")
+            self.cart2_btn.setEnabled(True)
+            print(f"[DEBUG][AT+AL] Primo scatto registrato a {v} V")
+        elif self._at_al_cart2_value is None:
+            self._at_al_cart2_value = v
+            self.cart2_label.setText(f"Cartellino2: {v} V")
+            print(f"[DEBUG][AT+AL] Secondo scatto registrato a {v} V")
+            self._finalize()
+
+    def _finalize(self):
+        """Ferma il timer, salva il valore minimo su Excel e chiude il dialog."""
         if hasattr(self, '_timer') and self._timer.isActive():
-            print("[DEBUG][AT+AL] Timer fermato da _cart2.")
             self._timer.stop()
-        # Salva il valore più basso tra i due cartellini (primo che scatta)
-        if self._at_al_cart1_value is not None and self._at_al_cart2_value is not None:
-            min_value = min(self._at_al_cart1_value, self._at_al_cart2_value)
-            print(f"[DEBUG][AT+AL] Salvo su excel: min_value={min_value}, cart1={self._at_al_cart1_value}, cart2={self._at_al_cart2_value}")
-            summary = (
-                f"Anomalia Tiristore e Limiti (AT+AL)\n"
-                f"Tensione Cartellino 1: {self._at_al_cart1_value} V\n"
-                f"Tensione Cartellino 2: {self._at_al_cart2_value} V\n"
-                f"Colonne: O={min_value}, Q=OK, R=OK, S=POS.\n\n"
-                f"Riarmare i cartellini."
-            )
-            self.write_to_excel(
-                lambda handler, row: handler.write_at_al_results(row, min_value),
-                summary=summary,
-                popup_to_close=self,
-            )
-            self.update_status("Test AT+AL completato", "ok")
-            print("[DEBUG][AT+AL] Dialog chiusa da _cart2.")
-            self.accept()
+        if self._at_al_cart1_value is None or self._at_al_cart2_value is None:
+            return
+        min_value = min(self._at_al_cart1_value, self._at_al_cart2_value)
+        print(
+            f"[DEBUG][AT+AL] Salvo: min={min_value}, "
+            f"cart1={self._at_al_cart1_value}, cart2={self._at_al_cart2_value}"
+        )
+        summary = (
+            f"Anomalia Tiristore e Limiti (AT+AL)\n"
+            f"Tensione Cartellino 1: {self._at_al_cart1_value} V\n"
+            f"Tensione Cartellino 2: {self._at_al_cart2_value} V\n"
+            f"Colonne: O={min_value}, Q=OK, R=OK, S=POS.\n\n"
+            f"Riarmare i cartellini."
+        )
+        self.write_to_excel(
+            lambda handler, row: handler.write_at_al_results(row, min_value),
+            summary=summary,
+            popup_to_close=self,
+        )
+        self.update_status("Test AT+AL completato", "ok")
+        self.accept()

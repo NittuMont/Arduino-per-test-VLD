@@ -259,35 +259,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._innesco_test_active = False
 
     def on_test_anomalia_tiristore_limiti(self):
-        """Avvia la finestra/test AT+AL (Anomalia Tiristore + Limiti)."""
-        # Disattiva tutti i test
-        self._ad_test_active = False
-        self._at_al_test_active = False
-        self._innesco_test_active = False
-        self._stop_existing_timer('_at_al_timer')
-        # Azzeramento timer e flag anomalia relè (metodo centralizzato)
-        if hasattr(self.ble_handlers, 'reset_all_relay_timers_and_flags'):
-            self.ble_handlers.reset_all_relay_timers_and_flags()
-        if self.ctrl:
-            try:
-                self.ctrl.output_off()
-            except Exception:
-                pass
-            try:
-                self.ctrl.local_mode()
-            except Exception:
-                pass
-        if hasattr(self, '_at_al_dialog') and self._at_al_dialog is not None:
-            self._at_al_dialog = None
-        if hasattr(self.ble_handlers, '_relay_timers'):
-            for i in range(len(self.ble_handlers._relay_timers)):
-                timer = self.ble_handlers._relay_timers[i]
-                if timer is not None:
-                    timer.stop()
-                self.ble_handlers._relay_timers[i] = None
-                self.ble_handlers._relay_anomaly[i] = False
-        self._update_status("Pronto", "ok")
-        # Avvia la finestra/test AT+AL
+        """Apre la finestra del test AT+AL (Anomalia Tiristore + Limiti)."""
+        self._stop_all_tests()
         self._start_at_al_test()
     def _on_psu_reconnect_clicked(self):
         self._start_psu_connect()
@@ -484,7 +457,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _show_ble_log_window(self):
         if self._ble_log_window is None:
-            self._ble_log_window = self.BLELogWindow(self)
+            self._ble_log_window = BLELogWindow(self)
         self._ble_log_window.set_log(self._ble_log)
         self._ble_log_window.show()
 
@@ -1068,15 +1041,18 @@ class MainWindow(QtWidgets.QMainWindow):
         popup.setStyleSheet(self._POPUP_STYLESHEET)
         popup.setMinimumWidth(min_width)
 
-    def on_test_anomalia_diodo(self):
-        # Disattiva tutti i test
+    # ------------------------------------------------------------------
+    # Helper condiviso: ferma tutti i test prima di avviarne uno nuovo
+    # ------------------------------------------------------------------
+
+    def _stop_all_tests(self):
+        """Resetta tutti i flag test, ferma i timer e spegne l'uscita PSU."""
         self._ad_test_active = False
         self._at_al_test_active = False
         self._innesco_test_active = False
-        self._stop_existing_timer('_ad_timer')
-        # Azzeramento timer e flag anomalia relè (metodo centralizzato)
-        if hasattr(self.ble_handlers, 'reset_all_relay_timers_and_flags'):
-            self.ble_handlers.reset_all_relay_timers_and_flags()
+        self.ble_handlers.reset_all_relay_timers_and_flags()
+        for attr in ('_ad_timer', '_at_al_timer', '_innesco_timer'):
+            self._stop_existing_timer(attr)
         if self.ctrl:
             try:
                 self.ctrl.output_off()
@@ -1086,37 +1062,30 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.ctrl.local_mode()
             except Exception:
                 pass
-        if hasattr(self, '_ad_dialog') and self._ad_dialog is not None:
-            self._ad_dialog = None
-        if hasattr(self.ble_handlers, '_relay_timers'):
-            for i in range(len(self.ble_handlers._relay_timers)):
-                timer = self.ble_handlers._relay_timers[i]
-                if timer is not None:
-                    timer.stop()
-                self.ble_handlers._relay_timers[i] = None
-                self.ble_handlers._relay_anomaly[i] = False
-        if self.ctrl:
-            try:
-                self.ctrl.output_off()
-            except Exception:
-                pass
-            try:
-                self.ctrl.local_mode()
-            except Exception:
-                pass
-        if hasattr(self, '_at_al_dialog') and self._at_al_dialog is not None:
-            self._at_al_dialog = None
-        if hasattr(self, '_innesco_dialog') and self._innesco_dialog is not None:
-            self._innesco_dialog = None
-        self._update_status("Pronto", "ok")
-        # Avvia la finestra/test AT+AL
-        self._start_at_al_test()
+
+    def on_test_anomalia_diodo(self):
+        """Apre la finestra del test Anomalia Diodo (AD)."""
+        self._stop_all_tests()
+        self._start_ad_test()
+
+    def _start_ad_test(self):
+        from .widgets.test_ad_dialog import TestADDialog
+        self._ad_dialog = TestADDialog(
+            self,
+            self.ctrl,
+            self._write_to_excel,
+            self._update_status,
+            self._safe_power_off,
+            timer_step_ms=self._ad_timer_interval_ms
+        )
+        self._ad_test_active = True
+        self._ad_dialog.finished.connect(self._close_ad_test)
+        self._ad_dialog.exec_()
+        self._ad_dialog = None
     def _close_innesco_test(self):
-        self._at_al_test_active = False
-        self._stop_existing_timer('_at_al_timer')
-        # Azzeramento timer e flag anomalia relè (metodo centralizzato)
-        if hasattr(self.ble_handlers, 'reset_all_relay_timers_and_flags'):
-            self.ble_handlers.reset_all_relay_timers_and_flags()
+        self._innesco_test_active = False
+        self._stop_existing_timer('_innesco_timer')
+        self.ble_handlers.reset_all_relay_timers_and_flags()
         if self.ctrl:
             try:
                 self.ctrl.output_off()
@@ -1126,8 +1095,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.ctrl.local_mode()
             except Exception:
                 pass
-        if hasattr(self, '_at_al_dialog') and self._at_al_dialog is not None:
-            self._at_al_dialog = None
         if hasattr(self, '_innesco_dialog') and self._innesco_dialog is not None:
             try:
                 self._innesco_dialog.finished.disconnect(self._close_innesco_test)
@@ -1138,7 +1105,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_status("Pronto", "ok")
 
     def _start_at_al_test(self):
-        # Usa la dialog dedicata come per gli altri test
         from .widgets.test_atal_dialog import TestATALDialog
         self._at_al_dialog = TestATALDialog(
             self,
@@ -1148,10 +1114,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self._safe_power_off,
             timer_step_ms=self._at_al_timer_interval_ms
         )
+        self._at_al_test_active = True
         self._at_al_dialog.finished.connect(self._close_at_al_test)
         self._at_al_dialog.exec_()
         self._at_al_dialog = None
-        # NOTA: tutta la logica di test AT+AL ora è nella dialog, non nella main window
 
     def _close_at_al_test(self):
         """Chiude e resetta lo stato del test AT+AL in modo sicuro."""
@@ -1178,209 +1144,22 @@ class MainWindow(QtWidgets.QMainWindow):
             self._at_al_dialog = None
         self._update_status("Pronto", "ok")
 
-    def _ad_al_step(self):
-        # called each second by timer
-        if self._ad_al_voltage >= TEST_MAX_VOLTAGE:
-            self._ad_al_timer.stop()
-            return
-        self._ad_al_voltage += 1
-        self.ctrl.set_voltage(self._ad_al_voltage)
-
-    def _stop_ad_al_test(self):
-        # triggered by popup button
-        if hasattr(self, "_ad_al_timer"):
-            self._ad_al_timer.stop()
-        if self.ctrl:
-            self.ctrl.output_off()
-        if hasattr(self, "_ad_al_popup"):
-            self._ad_al_popup.close()
-            del self._ad_al_popup
-
     def on_test_innesco_tiristore(self):
-        # Disattiva tutti i test
-        self._innesco_test_active = False
-        self._stop_existing_timer('_innesco_timer')
-        # Azzeramento timer e flag anomalia relè (metodo centralizzato)
-        if hasattr(self.ble_handlers, 'reset_all_relay_timers_and_flags'):
-            self.ble_handlers.reset_all_relay_timers_and_flags()
-        if self.ctrl:
-            try:
-                self.ctrl.output_off()
-            except Exception:
-                pass
-            try:
-                self.ctrl.local_mode()
-            except Exception:
-                pass
-        if hasattr(self, '_innesco_dialog') and self._innesco_dialog is not None:
-            self._innesco_dialog = None
-        # actual test sequence after initial instruction
-        self._pause_heartbeat()
-        self._update_status("Test Innesco in corso...", "working")
-        self._innesco_aborted = False
-        # Stop any leftover timers from a previous run
-        self._stop_existing_timer('_innesco_timer')
-        self._stop_existing_timer('_shutdown_timer')
-        if not self.ctrl:
-            return
-        # setup initial output
-        self.ctrl.set_voltage(INNESCO_START_VOLTAGE)
-        self.ctrl.set_current(TEST_CURRENT_A)
-        self.ctrl.output_on()
-        self._innesco_voltage = INNESCO_START_VOLTAGE
-        self._innesco_history = []
-
-        # create popup with exit button
-        popup = QtWidgets.QDialog(self)
-        popup.setWindowTitle("Innesco Tiristore")
-        self._style_popup(popup, min_width=500)
-        layout = QtWidgets.QVBoxLayout()
-        layout.setSpacing(10)
-        layout.setContentsMargins(20, 20, 20, 20)
-        # Live voltage monitor
-        voltage_label = QtWidgets.QLabel(
-            f"Tensione applicata: {INNESCO_START_VOLTAGE} V"
+        """Apre la finestra del test Innesco Tiristore."""
+        self._stop_all_tests()
+        from .widgets.test_innesco_dialog import TestInnescoDialog
+        self._innesco_dialog = TestInnescoDialog(
+            self,
+            self.ctrl,
+            self._write_to_excel,
+            self._update_status,
+            self._safe_power_off,
+            timer_step_ms=self._innesco_timer_interval_ms
         )
-        voltage_label.setObjectName("voltage_live")  # [VISUAL]
-        layout.addWidget(voltage_label)
-        label = QtWidgets.QLabel(
-            "Test Innesco: Attendere il completamento del test"
-        )
-        label.setObjectName("instructions")  # [VISUAL]
-        label.setWordWrap(True)
-        layout.addWidget(label)
-        exit_btn = QtWidgets.QPushButton("Esci dal test")
-        exit_btn.setObjectName("close_btn")  # [VISUAL]
-        exit_btn.clicked.connect(self._exit_innesco_test)
-        layout.addWidget(exit_btn)
-        popup.setLayout(layout)
-        self._innesco_popup = popup
-        self._innesco_label = label  # keep reference for updates
-        self._innesco_voltage_label = voltage_label  # live voltage display
-        popup.adjustSize()
-        popup.show()
-
-        # timer for increment and measurement — use singleShot chaining
-        # so that each step waits for the previous one to complete,
-        # ensuring uniform intervals regardless of SCPI latency.
-        self._innesco_running = True
-        self._schedule_innesco_step()
-
-    def _schedule_innesco_step(self):
-        """Schedule the next innesco step after INNESCO_TIMER_INTERVAL_MS."""
-        if not self._innesco_running:
-            return
-        # Store a reference so _stop_existing_timer can cancel it
-        self._innesco_timer = QtCore.QTimer(self)
-        self._innesco_timer.setSingleShot(True)
-        self._innesco_timer.timeout.connect(self._innesco_step)
-        self._innesco_timer.start(self._innesco_timer_interval_ms)
-
-    def _innesco_step(self):
-        # increment until measurement drops or max reached
-        if not self._innesco_running:
-            return
-        if self._innesco_voltage >= TEST_MAX_VOLTAGE:
-            self._innesco_running = False
-            # tensione massima raggiunta — spegnere e mettere in local
-            if self.ctrl:
-                try:
-                    self.ctrl.output_off()
-                except Exception:
-                    pass
-                try:
-                    self.ctrl.local_mode()
-                except Exception:
-                    pass
-            return
-        # increase voltage
-        self._innesco_voltage += 1
-        self.ctrl.set_voltage(self._innesco_voltage)
-        # update live voltage label
-        if hasattr(self, '_innesco_voltage_label'):
-            self._innesco_voltage_label.setText(
-                f"Tensione applicata: {self._innesco_voltage} V"
-            )
-        # measure and record
-        try:
-            measured = self.ctrl.measure_voltage()
-        except Exception:
-            measured = None
-        if measured is not None:
-            self._innesco_history.append(measured)
-            # check drop compared to previous
-            if len(self._innesco_history) >= 2 and measured < self._innesco_history[-2]:
-                # stop the increments
-                self._innesco_running = False
-                # find highest recorded value during test (including drop)
-                highest = max(self._innesco_history)
-                # schedule raw diode drop measurement after 1 second
-                QtCore.QTimer.singleShot(
-                    INNESCO_DIODE_DELAY_MS,
-                    lambda: self._calculate_diode_drop(highest),
-                )
-                return
-        # schedule next step — interval starts AFTER this step completes
-        self._schedule_innesco_step()
-    def _calculate_diode_drop(self, highest: float):
-        # if the test was aborted, do nothing
-        if getattr(self, '_innesco_aborted', False):
-            return
-        # measure voltage again for diode drop
-        try:
-            raw = self.ctrl.measure_voltage()
-        except Exception:
-            raw = None
-        if raw is not None:
-            adjusted = raw - INNESCO_DIODE_OFFSET_V
-            summary = (
-                f"Innesco Tiristore\n"
-                f"Valore massimo raggiunto: {highest} V\n"
-                f"Caduta diodo: {adjusted:.2f} V\n"
-                f"Colonne: H={adjusted:.2f}, J=POS., "
-                f"K={int(round(highest))}, M=OK, N=POS."
-            )
-            # Write Innesco results to Excel and close popup
-            self._write_to_excel(
-                lambda handler, row: handler.write_innesco_results(
-                    row, round(adjusted, 2), highest
-                ),
-                summary=summary,
-                popup_to_close=getattr(self, '_innesco_popup', None),
-            )
-            self._update_status("Test Innesco completato", "ok")
-        else:
-            # Impossibile misurare — spegnere per sicurezza
-            self._safe_power_off()
-            if hasattr(self, '_innesco_label'):
-                self._innesco_label.setText(
-                    f"Valore massimo raggiunto: {highest} V\n"
-                    "Errore: impossibile leggere la caduta di tensione."
-                )
-            self._update_status("Test Innesco — errore lettura", "error")
-
-    def _exit_innesco_test(self):
-        # mark test as aborted so pending singleShot callbacks are ignored
-        self._innesco_aborted = True
-        self._innesco_running = False
-        self._stop_existing_timer('_innesco_timer')
-        self._stop_existing_timer('_shutdown_timer')
-        if self.ctrl:
-            try:
-                self.ctrl.output_off()
-            except Exception:
-                pass
-            try:
-                self.ctrl.local_mode()
-            except Exception:
-                pass
-        if hasattr(self, "_innesco_popup") and self._innesco_popup is not None:
-            self._innesco_popup.close()
-            self._innesco_popup = None
-        if hasattr(self, "_innesco_label"):
-            del self._innesco_label
-        if hasattr(self, "_innesco_voltage_label"):
-            del self._innesco_voltage_label
+        self._innesco_test_active = True
+        self._innesco_dialog.finished.connect(self._close_innesco_test)
+        self._innesco_dialog.exec_()
+        self._innesco_dialog = None
 
     def _on_measure_complete(self, voltage: float, elapsed: float):
         self.result_label.setText(

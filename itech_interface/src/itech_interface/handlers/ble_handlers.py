@@ -1,24 +1,50 @@
 from PyQt5 import QtWidgets, QtCore
 
-# Handler BLE per MainWindow
+
 class BLEHandlers:
+    """Gestisce tutti gli eventi BLE per MainWindow.
+
+    Architettura:
+      - on_ble_state_update:  aggiorna GUI, poi dispatcha al gestore del test attivo.
+      - _process_ad_relay:    logica relè test AD  (idx=0, bit_off=5).
+      - _process_atal_relays: logica relè test AT+AL (AL idx=1 bit_off=4,
+                               AT idx=2 bit_off=3). Rileva primo e secondo scatto
+                               separatamente, chiama dialog.on_relay_tripped().
+      - Test Innesco:         nessuna logica relay (test autonomo).
+      - _check_anomaly:       avvia/cancella timer anomalia per ogni relè.
+      - reset_all_relay_timers_and_flags: pulizia completa, chiamabile da gui.py.
+    """
+
     def __init__(self, main_window):
         self.main = main_window
-        # Stato precedente dei 6 circuiti (bitmask)
         self._prev_state = 0
-        # Timer di tolleranza per ogni relè (None o QTimer)
-        self._relay_timers = [None] * 3  # [AD, AL, AT]
-        # Flag per anomalia già segnalata
+        # Il primo aggiornamento BLE non genera transizioni (prev_state=0 è arbitrario)
+        self._first_state_received = False
+        # Timer anomalia per ogni relè [AD=0, AL=1, AT=2]
+        self._anomaly_timers = [None] * 3
         self._relay_anomaly = [False] * 3
-        # Mappa: indice relè → (bit ON, bit OFF, nome, metodo_stop)
+        # (bit_ON, bit_OFF, nome) — indici: 0=AD, 1=AL, 2=AT
         self._relay_map = [
-            # (bit_ON, bit_OFF, nome, metodo_stop)
-            (2, 5, "AD", self.main._close_ad_test),
-            (1, 4, "AL", self.main._close_at_al_test),
-            (0, 3, "AT", self.main._begin_innesco),  # fix: era _close_innesco
+            (2, 5, "AD"),
+            (1, 4, "AL"),
+            (0, 3, "AT"),
         ]
-        # Tensione da registrare per ogni relè (None o float)
-        self._relay_voltage = [None] * 3
+
+    # ------------------------------------------------------------------
+    # Pulizia stato
+    # ------------------------------------------------------------------
+
+    def reset_all_relay_timers_and_flags(self):
+        """Ferma tutti i timer anomalia e resetta i flag di stato relè."""
+        for i in range(len(self._anomaly_timers)):
+            if self._anomaly_timers[i] is not None:
+                self._anomaly_timers[i].stop()
+            self._anomaly_timers[i] = None
+            self._relay_anomaly[i] = False
+
+    # ------------------------------------------------------------------
+    # BLE device discovery & connection
+    # ------------------------------------------------------------------
 
     def on_ble_reconnect_clicked(self):
         self.main.ble_status_bar.set_status('connecting')
@@ -42,17 +68,32 @@ class BLEHandlers:
             self.on_ble_connect_clicked()  # Connessione automatica
         else:
             QtCore.QTimer.singleShot(500, self.main.ble_worker.scan_ble)
-        self.main.ble_status_bar.set_status('fail' if not self.main._ble_devices else 'connecting')
+        self.main.ble_status_bar.set_status(
+            'fail' if not self.main._ble_devices else 'connecting'
+        )
 
     def on_ble_error(self, msg):
         import traceback
         self.main.ble_status_bar.set_status('fail')
         print(f"[BLE ERROR SUPPRESSED] {msg}")
-        print("[BLE ERROR TRACE]")
         traceback.print_stack()
 
+    def on_ble_connect_clicked(self):
+        idx = self.main.ble_device_combo.currentIndex()
+        print(f"[DEBUG] on_ble_connect_clicked: _ble_connected_flag={self.main._ble_connected_flag}")
+        if hasattr(self.main, '_ble_devices') and self.main._ble_devices and 0 <= idx < len(self.main._ble_devices):
+            device = self.main._ble_devices[idx]
+            self.main.ble_status_bar.set_status('connecting')
+            self.main.ble_worker.connect_device(device)
+        else:
+            QtWidgets.QMessageBox.warning(self.main, "BLE", "Nessun dispositivo selezionato.")
+
+    # ------------------------------------------------------------------
+    # BLE state update — entry point principale
+    # ------------------------------------------------------------------
+
     def on_ble_state_update(self, state_byte):
-        # Aggiorna GUI
+        # 1. Aggiorna sempre le label GUI (indipendentemente dal test attivo)
         for i in range(6):
             closed = (state_byte >> i) & 1
             label = self.main.ble_circuit_labels[i]
@@ -64,171 +105,156 @@ class BLEHandlers:
                 label.setText(self.main.ble_group.circuit_names[i] + ": APERTO")
                 label.setStyleSheet(f"background:#f88; {style_common}")
 
-        # Solo se BLE collegato (modalità automatica)
+        # 2. Solo se BLE è connesso (modalità automatica)
         if not getattr(self.main, '_ble_connected_flag', False):
             self._prev_state = state_byte
             return
 
+        # 3. Primo aggiornamento dopo la connessione: inizializza prev_state senza
+        #    generare transizioni (altrimenti ogni rele' chiuso sembrerebbe uno scatto)
+        if not self._first_state_received:
+            self._first_state_received = True
+            self._prev_state = state_byte
+            return
 
-        # Solo il test attivo può gestire la logica del proprio relè
-        test_flags = [self.main._ad_test_active, self.main._at_al_test_active, self.main._innesco_test_active]
-        if any(test_flags):
-            idx = test_flags.index(True)
-            bit_on, bit_off, nome, metodo_stop = self._relay_map[idx]
-            prev_on = (self._prev_state >> bit_on) & 1
-            prev_off = (self._prev_state >> bit_off) & 1
-            curr_on = (state_byte >> bit_on) & 1
-            curr_off = (state_byte >> bit_off) & 1
+        # 4. Dispatch al gestore del test attivo
+        if self.main._ad_test_active:
+            self._process_ad_relay(state_byte)
+        elif self.main._at_al_test_active:
+            self._process_atal_relays(state_byte)
+        # _innesco_test_active: nessuna logica relay, il test è gestito autonomamente
 
-            # Se entrambi aperti > 300ms → anomalia SOLO se il test è attivo
-            if not curr_on and not curr_off:
-                # Avvia timer anomalia SOLO se il test è attivo
-                if test_flags[idx]:
-                    if not self._relay_anomaly[idx]:
-                        # Avvia timer anomalia se non già attivo
-                        if self._relay_timers[idx] is None:
-                            print(f"[DEBUG] Avvio timer anomalia relè {nome} (idx={idx})")
-                            timer = QtCore.QTimer()
-                            timer.setSingleShot(True)
-                            timer.timeout.connect(lambda idx=idx: self._handle_relay_anomaly(idx, nome, metodo_stop))
-                            timer.start(300)
-                            self._relay_timers[idx] = timer
-                else:
-                    # Se il test NON è attivo, assicura che nessun timer venga lasciato attivo
-                    if self._relay_timers[idx] is not None:
-                        print(f"[DEBUG] Stop timer anomalia relè {nome} (idx={idx}) fuori test")
-                        self._relay_timers[idx].stop()
-                        self._relay_timers[idx] = None
-                    self._relay_anomaly[idx] = False
-                self._prev_state = state_byte
-                return
-                def reset_all_relay_timers_and_flags(self):
-                    for i in range(len(self._relay_timers)):
-                        timer = self._relay_timers[i]
-                        if timer is not None:
-                            print(f"[DEBUG] Stop timer anomalia relè idx={i} (reset_all)")
-                            timer.stop()
-                        self._relay_timers[i] = None
-                        self._relay_anomaly[i] = False
-            else:
-                # Se uno dei due è chiuso, cancella eventuale timer anomalia
-                if self._relay_timers[idx] is not None and self._relay_anomaly[idx]:
-                    self._relay_timers[idx].stop()
-                    self._relay_timers[idx] = None
-                    self._relay_anomaly[idx] = False
+        self._prev_state = state_byte
 
-            # Transizione ON→APERTO: avvia timer tolleranza
-            if prev_on and not curr_on:
-                # Avvia timer tolleranza per attesa chiusura OFF
-                if self._relay_timers[idx] is not None:
-                    self._relay_timers[idx].stop()
+    # ------------------------------------------------------------------
+    # Helpers interni
+    # ------------------------------------------------------------------
+
+    def _read_current_voltage(self):
+        """Legge la tensione impostata sull'alimentatore (None se non disponibile)."""
+        try:
+            return self.main.ctrl.get_voltage_set() if self.main.ctrl else None
+        except Exception:
+            return None
+
+    def _check_anomaly(self, relay_idx, curr_on, curr_off):
+        """Avvia o cancella il timer anomalia per il relè dato.
+
+        Anomalia = entrambi i circuiti (ON e OFF) aperti per più di 300 ms.
+        """
+        nome = self._relay_map[relay_idx][2]
+        if not curr_on and not curr_off:
+            if not self._relay_anomaly[relay_idx] and self._anomaly_timers[relay_idx] is None:
                 timer = QtCore.QTimer()
                 timer.setSingleShot(True)
-                timer.timeout.connect(lambda idx=idx, nome=nome, metodo_stop=metodo_stop: self._handle_relay_timeout(idx, nome, metodo_stop))
+                timer.timeout.connect(
+                    lambda ri=relay_idx, n=nome: self._handle_anomaly(ri, n)
+                )
                 timer.start(300)
-                self._relay_timers[idx] = timer
-            # Transizione OFF: APERTO→CHIUSO
-            if not prev_off and curr_off:
-                # Se timer tolleranza attivo, registra tensione e ferma test
-                if self._relay_timers[idx] is not None:
-                    self._relay_timers[idx].stop()
-                    self._relay_timers[idx] = None
-                    # Registra tensione impostata
-                    try:
-                        vset = self.main.ctrl.get_voltage_set() if self.main.ctrl else None
-                    except Exception:
-                        vset = None
-                    self._relay_voltage[idx] = vset
-                    # Simula pressione pulsante cartellino nel dialog attivo
-                    if idx == 0 and hasattr(self.main, '_ad_dialog') and self.main._ad_dialog is not None:
-                        # AD
-                        self.main._ad_dialog._ad_tripped()
-                    elif idx == 1 and hasattr(self.main, '_at_al_dialog') and self.main._at_al_dialog is not None:
-                        # AT+AL: logica indipendente dall'ordine dei relè OFF
-                        # Bit OFF: AL OFF = 4, AT OFF = 3
-                        relays_off = [(3, 'AT'), (4, 'AL')]
-                        # Stato precedente e attuale dei due relè OFF
-                        prev_offs = [(self._prev_state >> bit) & 1 for bit, _ in relays_off]
-                        curr_offs = [(state_byte >> bit) & 1 for bit, _ in relays_off]
-                        # Conta quanti sono chiusi ora
-                        num_closed = sum(curr_offs)
-                        print(f"[DEBUG][BLE] AT+AL: prev_offs={prev_offs}, curr_offs={curr_offs}, num_closed={num_closed}")
-                        # Se entrambi risultano chiusi, chiudi test e salva (indipendentemente dall'ordine)
-                        if num_closed == 2:
-                            print(f"[DEBUG][BLE] Entrambi i relè AT+AL OFF chiusi. Chiamo _cart1/_cart2.")
-                            # Se non già fatto, chiama _cart1() per il primo scatto
-                            if not hasattr(self.main._at_al_dialog, '_at_al_cart1_value') or self.main._at_al_dialog._at_al_cart1_value is None:
-                                print(f"[DEBUG][BLE] Chiamo _cart1() su dialog AT+AL")
-                                self.main._at_al_dialog._cart1()
-                            # Blocca chiamate multiple a _cart2
-                            if not hasattr(self.main._at_al_dialog, '_at_al_cart2_value') or self.main._at_al_dialog._at_al_cart2_value is None:
-                                print(f"[DEBUG][BLE] Chiamo _cart2() su dialog AT+AL")
-                                self.main._at_al_dialog._cart2()
-                    elif idx == 2 and hasattr(self.main, '_innesco_dialog') and self.main._innesco_dialog is not None:
-                        # Innesco: chiudi dialog
-                        self.main._innesco_dialog.accept()
-            # Reset anomalia se tutto ok
-            if curr_on or curr_off:
-                self._relay_anomaly[idx] = False
-        self._prev_state = state_byte
+                self._anomaly_timers[relay_idx] = timer
+        else:
+            if self._anomaly_timers[relay_idx] is not None:
+                self._anomaly_timers[relay_idx].stop()
+                self._anomaly_timers[relay_idx] = None
+            self._relay_anomaly[relay_idx] = False
 
-        self._prev_state = state_byte
-
-    def _handle_relay_timeout(self, idx, nome, metodo_stop):
-        # Blocca se il test non è più attivo
-        test_flags = [self.main._ad_test_active, self.main._at_al_test_active, self.main._innesco_test_active]
-        if not test_flags[idx]:
-            self._relay_timers[idx] = None
+    def _handle_anomaly(self, relay_idx, nome):
+        """Gestisce un'anomalia relè persistente (entrambi aperti > 300 ms)."""
+        self._anomaly_timers[relay_idx] = None
+        bit_on, bit_off, _ = self._relay_map[relay_idx]
+        curr_on = (self._prev_state >> bit_on) & 1
+        curr_off = (self._prev_state >> bit_off) & 1
+        if curr_on or curr_off:
+            return  # Anomalia rientrata prima del timeout
+        test_active = (
+            (relay_idx == 0 and self.main._ad_test_active) or
+            (relay_idx in (1, 2) and self.main._at_al_test_active)
+        )
+        if not test_active:
             return
-        # Dopo 300ms: se entrambi aperti, segnala anomalia
-        state_byte = self._prev_state
-        bit_on, bit_off, _, _ = self._relay_map[idx]
-        curr_on = (state_byte >> bit_on) & 1
+        self._relay_anomaly[relay_idx] = True
+        stop_fn = self.main._close_ad_test if relay_idx == 0 else self.main._close_at_al_test
+        QtWidgets.QMessageBox.critical(
+            self.main,
+            f"Anomalia relè {nome}",
+            f"Entrambi i circuiti (ON/OFF) del relè {nome} sono aperti da oltre 300 ms!\n"
+            f"Test interrotto senza salvare risultati."
+        )
+        stop_fn()
+
+    # ------------------------------------------------------------------
+    # Test AD — relè idx=0 (bit_ON=2, bit_OFF=5)
+    # ------------------------------------------------------------------
+
+    def _process_ad_relay(self, state_byte):
+        relay_idx = 0
+        bit_on, bit_off, _ = self._relay_map[relay_idx]
+        prev_off = (self._prev_state >> bit_off) & 1
+        curr_on  = (state_byte >> bit_on)  & 1
         curr_off = (state_byte >> bit_off) & 1
-        if not curr_on and not curr_off:
-            self._relay_anomaly[idx] = True
-            QtWidgets.QMessageBox.critical(self.main, f"Anomalia relè {nome}", f"Entrambi i circuiti (ON/OFF) del relè {nome} sono aperti da oltre 300ms! Test interrotto senza salvare risultati.")
-            metodo_stop()
-        self._relay_timers[idx] = None
 
-    def _handle_relay_anomaly(self, idx, nome, metodo_stop):
-        # Blocca se il test non è più attivo
-        test_flags = [self.main._ad_test_active, self.main._at_al_test_active, self.main._innesco_test_active]
-        if not test_flags[idx]:
-            self._relay_timers[idx] = None
-            return
-        # Anomalia persistente: popup e stop test
-        self._relay_anomaly[idx] = True
-        QtWidgets.QMessageBox.critical(self.main, f"Anomalia relè {nome}", f"Entrambi i circuiti (ON/OFF) del relè {nome} sono aperti da oltre 300ms! Test interrotto senza salvare risultati.")
-        metodo_stop()
-        self._relay_timers[idx] = None
+        self._check_anomaly(relay_idx, curr_on, curr_off)
+
+        # Scatto: transizione OFF APERTO→CHIUSO
+        if not prev_off and curr_off:
+            voltage = self._read_current_voltage()
+            print(f"[BLE][AD] Relè scattato a {voltage} V")
+            dialog = getattr(self.main, '_ad_dialog', None)
+            if dialog is not None:
+                dialog.on_relay_tripped(voltage)
+
+    # ------------------------------------------------------------------
+    # Test AT+AL — AL idx=1 (bit_off=4) e AT idx=2 (bit_off=3)
+    # ------------------------------------------------------------------
+
+    def _process_atal_relays(self, state_byte):
+        """Rileva il primo e il secondo scatto indipendentemente.
+
+        Ogni volta che un relè OFF passa APERTO→CHIUSO viene chiamato
+        dialog.on_relay_tripped(relay_name, voltage).
+        La dialog tiene traccia dell'ordine (primo/secondo scatto).
+        """
+        dialog = getattr(self.main, '_at_al_dialog', None)
+
+        for relay_idx in (1, 2):
+            bit_on, bit_off, nome = self._relay_map[relay_idx]
+            prev_off = (self._prev_state >> bit_off) & 1
+            curr_on  = (state_byte >> bit_on)  & 1
+            curr_off = (state_byte >> bit_off) & 1
+
+            self._check_anomaly(relay_idx, curr_on, curr_off)
+
+            # Scatto: transizione OFF APERTO→CHIUSO
+            if not prev_off and curr_off:
+                voltage = self._read_current_voltage()
+                print(f"[BLE][AT+AL] Relè {nome} scattato a {voltage} V")
+                if dialog is not None:
+                    dialog.on_relay_tripped(nome, voltage)
+
+    # ------------------------------------------------------------------
+    # Connection events
+    # ------------------------------------------------------------------
 
     def on_ble_connected(self):
-        print(f"[DEBUG] on_ble_connected: setting self.main._ble_connected_flag = True (was {self.main._ble_connected_flag})")
+        print("[DEBUG] on_ble_connected: _ble_connected_flag = True")
         self.main.ble_status_bar.set_status('ok')
         self.main._ble_connected_flag = True
+        self._first_state_received = False  # reset: prossima notifica inizializza prev_state
         self.main._ad_timer_interval_ms = max(1, int(self.main.AD_TIMER_INTERVAL_MS * 0.1))
         self.main._at_al_timer_interval_ms = max(1, int(self.main.AT_AL_TIMER_INTERVAL_MS * 0.1))
         self.main._innesco_timer_interval_ms = max(1, int(self.main.INNESCO_TIMER_INTERVAL_MS * 0.1))
 
     def on_ble_disconnected(self):
-        print(f"[DEBUG] on_ble_disconnected: setting self.main._ble_connected_flag = False (was {self.main._ble_connected_flag})")
+        print("[DEBUG] on_ble_disconnected: _ble_connected_flag = False")
         self.main.ble_status_bar.set_status('fail')
         self.main._ble_connected_flag = False
         self.main._ad_timer_interval_ms = self.main.AD_TIMER_INTERVAL_MS
         self.main._at_al_timer_interval_ms = self.main.AT_AL_TIMER_INTERVAL_MS
         self.main._innesco_timer_interval_ms = self.main.INNESCO_TIMER_INTERVAL_MS
-        QtWidgets.QMessageBox.warning(self.main, "Connessione BLE", "Connessione BLE persa! Tentativo di riconnessione...")
+        QtWidgets.QMessageBox.warning(
+            self.main, "Connessione BLE",
+            "Connessione BLE persa! Tentativo di riconnessione..."
+        )
         self.main._ble_devices = []
         self.main.ble_device_combo.clear()
         QtCore.QTimer.singleShot(500, self.main.ble_worker.scan_ble)
-
-    def on_ble_connect_clicked(self):
-        idx = self.main.ble_device_combo.currentIndex()
-        print(f"[DEBUG] on_ble_connect_clicked: _ble_connected_flag is {self.main._ble_connected_flag}")
-        if hasattr(self.main, '_ble_devices') and self.main._ble_devices and 0 <= idx < len(self.main._ble_devices):
-            device = self.main._ble_devices[idx]
-            self.main.ble_status_bar.set_status('connecting')
-            self.main.ble_worker.connect_device(device)
-        else:
-            QtWidgets.QMessageBox.warning(self.main, "BLE", "Nessun dispositivo selezionato.")

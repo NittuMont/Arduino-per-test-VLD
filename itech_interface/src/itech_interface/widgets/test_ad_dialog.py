@@ -137,6 +137,16 @@ class TestADDialog(QtWidgets.QDialog):
         self.ctrl.set_voltage(self._ad_voltage)
         self.status_label.setText(f"Tensione applicata: {self._ad_voltage} V")
 
+    def on_relay_tripped(self, voltage=None):
+        """Chiamato dal BLE handler quando il relè AD scatta.
+
+        voltage: tensione impostata al momento dello scatto (None = usa valore corrente)
+        """
+        print(f"[DEBUG][AD] on_relay_tripped: V={voltage}")
+        if voltage is not None and isinstance(voltage, (int, float)):
+            self._ad_voltage = int(round(voltage))
+        self._ad_tripped()
+
     def _ad_tripped(self):
         if hasattr(self, "_timer") and self._timer.isActive():
             self._timer.stop()
