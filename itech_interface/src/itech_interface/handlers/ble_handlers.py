@@ -224,10 +224,14 @@ class BLEHandlers:
         self.main.ble_status_bar.set_status('ok')
         self.main._ble_connected_flag = True
         self._first_state_received = False
+        # Con BLE attivo: step tensione veloci (100 ms)
+        self.main._on_step_interval_selected(100)
 
     def on_ble_disconnected(self):
         self.main.ble_status_bar.set_status('fail')
         self.main._ble_connected_flag = False
+        # Senza BLE: step tensione lenti (1000 ms)
+        self.main._on_step_interval_selected(1000)
         QtWidgets.QMessageBox.warning(
             self.main, "Connessione BLE",
             "Connessione BLE persa! Tentativo di riconnessione..."

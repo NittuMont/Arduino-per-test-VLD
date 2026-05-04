@@ -178,10 +178,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_worker.disconnected.connect(self.ble_handlers.on_ble_disconnected)
         self.ble_worker.start()
         self._ble_connected_flag = False
-        # Timer dinamici per test (default = 100%)
+        # Timer dinamici per test
+        # AD e AT_AL: 1000ms senza BLE, 100ms con BLE collegato
+        # Innesco: fisso a 100ms sempre
         self._ad_timer_interval_ms = AD_TIMER_INTERVAL_MS
         self._at_al_timer_interval_ms = AT_AL_TIMER_INTERVAL_MS
-        self._innesco_timer_interval_ms = INNESCO_TIMER_INTERVAL_MS
+        self._innesco_timer_interval_ms = 100
 
         # Avvio automatico BLE scan e PSU connect all'avvio
         QtCore.QTimer.singleShot(0, self._start_ble_scan_with_status)
@@ -327,7 +329,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._step_interval_label.setText(f"Step: {ms} ms")
         self._ad_timer_interval_ms = ms
         self._at_al_timer_interval_ms = ms
-        self._innesco_timer_interval_ms = ms
+        # innesco è fisso a 100 ms indipendentemente dalla selezione
 
     def _on_ble_state_update_with_log(self, *args, **kwargs):
         # Logga il tempo di ricezione della notifica BLE
