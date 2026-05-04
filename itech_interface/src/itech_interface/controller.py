@@ -33,6 +33,11 @@ class PowerSupplyController:
         resp = self.conn.query("MEAS:VOLT?")
         return float(resp)
 
+    def fetch_voltage(self) -> float:
+        """Return the last sampled voltage without triggering a new ADC conversion (~60ms vs ~300ms for MEAS:VOLT?)."""
+        resp = self.conn.query("FETCH:VOLT?")
+        return float(resp)
+
     def measure_current(self) -> float:
         resp = self.conn.query("MEAS:CURR?")
         return float(resp)

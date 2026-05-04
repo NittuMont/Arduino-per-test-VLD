@@ -65,8 +65,8 @@ class TestInnescoDialog(QtWidgets.QDialog):
 
         Usando singleShot invece di un timer repeating, il prossimo step
         viene schedulato DOPO il completamento del precedente (inclusa la
-        query SCPI measure_voltage). Cosi' l'intervallo e' rispettato anche
-        a valori bassi (10-25 ms) senza rischio di chiamate sovrapposte.
+        query SCPI fetch_voltage). Cosi' l'intervallo e' rispettato anche
+        a valori bassi come 0ms senza rischio di chiamate sovrapposte.
         """
         if self._running:
             QtCore.QTimer.singleShot(self._timer_interval, self._innesco_step)
@@ -83,7 +83,7 @@ class TestInnescoDialog(QtWidgets.QDialog):
         self.ctrl.set_voltage(self._innesco_voltage)
         self.voltage_label.setText(f"Tensione applicata: {self._innesco_voltage} V")
         try:
-            measured = self.ctrl.measure_voltage()
+            measured = self.ctrl.fetch_voltage()
         except Exception:
             measured = None
         if measured is not None:
