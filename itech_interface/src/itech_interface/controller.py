@@ -36,8 +36,3 @@ class PowerSupplyController:
     def measure_current(self) -> float:
         resp = self.conn.query("MEAS:CURR?")
         return float(resp)
-
-    def get_voltage_set(self) -> float:
-        """Query the programmed voltage setpoint (not the measured value)."""
-        resp = self.conn.query("VOLT?")
-        return float(resp)

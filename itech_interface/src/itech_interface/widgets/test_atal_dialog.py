@@ -166,14 +166,10 @@ class TestATALDialog(QtWidgets.QDialog):
     # Interfaccia pubblica per BLE handler e bottoni manuali
     # ------------------------------------------------------------------
 
-    def on_relay_tripped(self, relay_name, voltage=None):
-        """Chiamato dal BLE handler quando un relè (AL o AT) scatta.
-
-        relay_name: 'AL' o 'AT'
-        voltage:    tensione impostata al momento dello scatto (None = usa valore corrente)
-        """
-        print(f"[DEBUG][AT+AL] on_relay_tripped: relay={relay_name}, V={voltage}")
-        self._record_trip(voltage)
+    def on_relay_tripped(self, relay_name):
+        """Chiamato dal BLE handler quando un relè (AL o AT) scatta."""
+        print(f"[DEBUG][AT+AL] on_relay_tripped: relay={relay_name}, V={self._at_al_voltage}")
+        self._record_trip()
 
     def _cart1(self):
         """Bottone manuale primo scatto."""
@@ -183,12 +179,9 @@ class TestATALDialog(QtWidgets.QDialog):
         """Bottone manuale secondo scatto."""
         self._record_trip()
 
-    def _record_trip(self, voltage=None):
-        """Registra uno scatto. Primo → cart1, secondo → cart2 e finalizza.
-
-        voltage: tensione al momento dello scatto. Se None usa self._at_al_voltage.
-        """
-        v = voltage if voltage is not None else self._at_al_voltage
+    def _record_trip(self):
+        """Registra uno scatto. Primo → cart1, secondo → cart2 e finalizza."""
+        v = self._at_al_voltage
         if self._at_al_cart1_value is None:
             self._at_al_cart1_value = v
             self.cart1_label.setText(f"Cartellino1: {v} V")

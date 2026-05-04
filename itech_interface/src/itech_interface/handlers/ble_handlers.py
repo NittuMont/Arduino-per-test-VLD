@@ -130,13 +130,6 @@ class BLEHandlers:
     # Helpers interni
     # ------------------------------------------------------------------
 
-    def _read_current_voltage(self):
-        """Legge la tensione impostata sull'alimentatore (None se non disponibile)."""
-        try:
-            return self.main.ctrl.get_voltage_set() if self.main.ctrl else None
-        except Exception:
-            return None
-
     def _check_anomaly(self, relay_idx, curr_on, curr_off):
         """Avvia o cancella il timer anomalia per il relè dato.
 
@@ -197,11 +190,10 @@ class BLEHandlers:
 
         # Scatto: transizione OFF APERTO→CHIUSO
         if not prev_off and curr_off:
-            voltage = self._read_current_voltage()
-            print(f"[BLE][AD] Relè scattato a {voltage} V")
+            print("[BLE][AD] Relè scattato")
             dialog = getattr(self.main, '_ad_dialog', None)
             if dialog is not None:
-                dialog.on_relay_tripped(voltage)
+                dialog.on_relay_tripped()
 
     # ------------------------------------------------------------------
     # Test AT+AL — AL idx=1 (bit_off=4) e AT idx=2 (bit_off=3)
@@ -226,10 +218,9 @@ class BLEHandlers:
 
             # Scatto: transizione OFF APERTO→CHIUSO
             if not prev_off and curr_off:
-                voltage = self._read_current_voltage()
-                print(f"[BLE][AT+AL] Relè {nome} scattato a {voltage} V")
+                print(f"[BLE][AT+AL] Relè {nome} scattato")
                 if dialog is not None:
-                    dialog.on_relay_tripped(nome, voltage)
+                    dialog.on_relay_tripped(nome)
 
     # ------------------------------------------------------------------
     # Connection events
