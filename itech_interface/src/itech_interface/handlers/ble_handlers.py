@@ -73,14 +73,10 @@ class BLEHandlers:
         )
 
     def on_ble_error(self, msg):
-        import traceback
         self.main.ble_status_bar.set_status('fail')
-        print(f"[BLE ERROR SUPPRESSED] {msg}")
-        traceback.print_stack()
 
     def on_ble_connect_clicked(self):
         idx = self.main.ble_device_combo.currentIndex()
-        print(f"[DEBUG] on_ble_connect_clicked: _ble_connected_flag={self.main._ble_connected_flag}")
         if hasattr(self.main, '_ble_devices') and self.main._ble_devices and 0 <= idx < len(self.main._ble_devices):
             device = self.main._ble_devices[idx]
             self.main.ble_status_bar.set_status('connecting')
@@ -190,7 +186,6 @@ class BLEHandlers:
 
         # Scatto: transizione OFF APERTO→CHIUSO
         if not prev_off and curr_off:
-            print("[BLE][AD] Relè scattato")
             dialog = getattr(self.main, '_ad_dialog', None)
             if dialog is not None:
                 dialog.on_relay_tripped()
@@ -218,7 +213,6 @@ class BLEHandlers:
 
             # Scatto: transizione OFF APERTO→CHIUSO
             if not prev_off and curr_off:
-                print(f"[BLE][AT+AL] Relè {nome} scattato")
                 if dialog is not None:
                     dialog.on_relay_tripped(nome)
 
@@ -227,21 +221,13 @@ class BLEHandlers:
     # ------------------------------------------------------------------
 
     def on_ble_connected(self):
-        print("[DEBUG] on_ble_connected: _ble_connected_flag = True")
         self.main.ble_status_bar.set_status('ok')
         self.main._ble_connected_flag = True
-        self._first_state_received = False  # reset: prossima notifica inizializza prev_state
-        self.main._ad_timer_interval_ms = max(1, int(self.main.AD_TIMER_INTERVAL_MS * 0.1))
-        self.main._at_al_timer_interval_ms = max(1, int(self.main.AT_AL_TIMER_INTERVAL_MS * 0.1))
-        self.main._innesco_timer_interval_ms = max(1, int(self.main.INNESCO_TIMER_INTERVAL_MS * 0.1))
+        self._first_state_received = False
 
     def on_ble_disconnected(self):
-        print("[DEBUG] on_ble_disconnected: _ble_connected_flag = False")
         self.main.ble_status_bar.set_status('fail')
         self.main._ble_connected_flag = False
-        self.main._ad_timer_interval_ms = self.main.AD_TIMER_INTERVAL_MS
-        self.main._at_al_timer_interval_ms = self.main.AT_AL_TIMER_INTERVAL_MS
-        self.main._innesco_timer_interval_ms = self.main.INNESCO_TIMER_INTERVAL_MS
         QtWidgets.QMessageBox.warning(
             self.main, "Connessione BLE",
             "Connessione BLE persa! Tentativo di riconnessione..."
