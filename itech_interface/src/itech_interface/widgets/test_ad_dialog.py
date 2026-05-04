@@ -1,4 +1,5 @@
 from PyQt5 import QtWidgets, QtCore
+from .dialog_style import POPUP_STYLESHEET
 
 class TestADDialog(QtWidgets.QDialog):
     def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
@@ -13,74 +14,10 @@ class TestADDialog(QtWidgets.QDialog):
         self._timer_interval = timer_step_ms if timer_step_ms is not None else 1000
         self._setup_ui()
 
-    _POPUP_STYLESHEET = """
-        QDialog {
-            background-color: #f0f2f5;
-        }
-        QDialog * {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 15pt;
-        }
-        QDialog QPushButton {
-            min-height: 46px;
-            padding: 8px 18px;
-            background-color: #0078d4;
-            color: white;
-            border: none;
-            border-radius: 6px;
-        }
-        QDialog QPushButton:hover {
-            background-color: #106ebe;
-        }
-        QDialog QPushButton:pressed {
-            background-color: #005a9e;
-        }
-        QDialog QPushButton:disabled {
-            background-color: #b0b0b0;
-            color: #e0e0e0;
-        }
-        QDialog QPushButton#start_btn {
-            background-color: #107c10;
-            font-weight: bold;
-        }
-        QDialog QPushButton#start_btn:hover {
-            background-color: #0b6a0b;
-        }
-        QDialog QPushButton#close_btn {
-            background-color: #d13438;
-        }
-        QDialog QPushButton#close_btn:hover {
-            background-color: #a4262c;
-        }
-        QDialog QPushButton#cart_btn {
-            min-height: 92px;
-        }
-        QDialog QLabel#instructions {
-            background-color: #e8f4fd;
-            border: 1px solid #b3d7f0;
-            border-radius: 6px;
-            padding: 12px;
-            color: #004578;
-            font-size: 14pt;
-        }
-        QDialog QLabel#voltage_live {
-            background-color: #fff4ce;
-            border: 1px solid #f0d060;
-            border-radius: 6px;
-            padding: 10px;
-            font-size: 16pt;
-            font-weight: bold;
-            color: #8a6d00;
-        }
-        QDialog QLabel {
-            padding: 4px 0px;
-            color: #333;
-        }
-    """
 
     def _setup_ui(self):
         self.setMinimumWidth(500)
-        self.setStyleSheet(self._POPUP_STYLESHEET)
+        self.setStyleSheet(POPUP_STYLESHEET)
         layout = QtWidgets.QVBoxLayout()
         layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
