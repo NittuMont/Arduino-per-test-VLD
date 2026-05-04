@@ -116,16 +116,24 @@ class TestInnescoDialog(QtWidgets.QDialog):
         self.ctrl.output_on()
         self._history = []
         self._running = True
-        self._timer = QtCore.QTimer(self)
-        self._timer.timeout.connect(self._innesco_step)
-        self._timer.start(self._timer_interval)
+        self._schedule_step()
+
+    def _schedule_step(self):
+        """Pianifica il prossimo step con singleShot.
+
+        Usando singleShot invece di un timer repeating, il prossimo step
+        viene schedulato DOPO il completamento del precedente (inclusa la
+        query SCPI measure_voltage). Cosi' l'intervallo e' rispettato anche
+        a valori bassi (10-25 ms) senza rischio di chiamate sovrapposte.
+        """
+        if self._running:
+            QtCore.QTimer.singleShot(self._timer_interval, self._innesco_step)
 
     def _innesco_step(self):
         if not self._running:
             return
         if self._innesco_voltage >= self._max_voltage:
             self._running = False
-            self._timer.stop()
             self.ctrl.output_off()
             self.ctrl.local_mode()
             return
@@ -140,10 +148,11 @@ class TestInnescoDialog(QtWidgets.QDialog):
             self._history.append(measured)
             if len(self._history) >= 2 and measured < self._history[-2]:
                 self._running = False
-                self._timer.stop()
                 highest = max(self._history)
                 QtCore.QTimer.singleShot(self._diode_delay, lambda: self._calculate_diode_drop(highest))
                 return
+        # Schedula il prossimo step solo DOPO aver completato questo
+        self._schedule_step()
 
     def _calculate_diode_drop(self, highest):
         try:

@@ -429,7 +429,7 @@ class MainWindow(QtWidgets.QMainWindow):
         step_menu = settings_menu.addMenu("Tempo step tensione")
         # Azioni step
         self._step_actions = {}
-        for ms in [100, 50, 25]:
+        for ms in [100, 50, 25, 10]:
             action = QtWidgets.QAction(f"{ms} ms", self)
             action.setCheckable(True)
             if ms == self._step_interval_ms:
@@ -461,37 +461,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ble_log_window.set_log(self._ble_log)
         self._ble_log_window.show()
 
-        # Layout barra di stato alimentatore e BLE + label step
-        status_bars = QtWidgets.QHBoxLayout()
-        self.psu_status_bar = PSUStatusBar()
-        self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
-        status_bars.addWidget(self.psu_status_bar)
-        self.ble_status_bar = BLEStatusBar()
-        self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
-        status_bars.addWidget(self.ble_status_bar)
-        status_bars.addStretch()
-        status_bars.addWidget(self._step_interval_label)
-        self.left_col.insertLayout(0, status_bars)
-
     def _on_step_interval_selected(self, ms):
         for val, action in self._step_actions.items():
             action.setChecked(val == ms)
         self._step_interval_ms = ms
         self._step_interval_label.setText(f"Step: {ms} ms")
-        # Aggiorna tutti i timer interval dei test
         self._ad_timer_interval_ms = ms
         self._at_al_timer_interval_ms = ms
         self._innesco_timer_interval_ms = ms
         print(f"[DEBUG] Step interval impostato a {ms} ms (tutti i test)")
-        central = QtWidgets.QWidget()
-        central.setLayout(self.main_layout)
-        self.setCentralWidget(central)
-
-        # Worker BLE (dopo che tutti i riferimenti sono pronti)
-        self.ble_worker = AsyncBLEWorker()
-        self.ble_worker.devices_found.connect(self.ble_handlers.on_ble_devices_found)
-        self.ble_worker.error.connect(self.ble_handlers.on_ble_error)
-        self.ble_worker.state_update.connect(self._on_ble_state_update_with_log)
 
     def _on_ble_state_update_with_log(self, *args, **kwargs):
         # Logga il tempo di ricezione della notifica BLE
