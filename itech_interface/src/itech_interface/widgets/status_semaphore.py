@@ -12,7 +12,7 @@ class StatusSemaphore(QtWidgets.QLabel):
         self.setStyleSheet(
             f"background-color: {color}; "
             f"border-radius: 8px; "
-            f"border: 2px solid rgba(0,0,0,0.1);"
+            f"border: 2px solid rgba(255,255,255,0.1);"
         )
 
     def set_status(self, label_text, color):

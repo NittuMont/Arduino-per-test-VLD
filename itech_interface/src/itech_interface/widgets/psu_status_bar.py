@@ -9,15 +9,15 @@ class PSUStatusBar(QtWidgets.QWidget):
         layout.setSpacing(8)
         self.status_light = StatusSemaphore("", "#ccc")
         self.status_text = QtWidgets.QLabel("Alimentatore")
-        self.status_text.setStyleSheet("font-size:12pt; font-weight:bold; color:#333;")
+        self.status_text.setStyleSheet("font-size:12pt; font-weight:bold; color:#e2e8f0;")
         self.attempts_label = QtWidgets.QLabel("Tentativi: 0")
-        self.attempts_label.setStyleSheet("font-size:10pt; color:#666;")
+        self.attempts_label.setStyleSheet("font-size:10pt; color:#94a3b8;")
         self.reconnect_btn = QtWidgets.QPushButton("Riconnetti")
         self.reconnect_btn.setToolTip("Tenta una nuova connessione manuale all'alimentatore")
         self.reconnect_btn.setStyleSheet(
             "QPushButton { min-height:28px; font-size:10pt; padding:4px 12px; "
-            "background:#e8f0fe; color:#0078d4; border:1px solid #b3d7f0; border-radius:6px; }"
-            "QPushButton:hover { background:#d0e4fc; }"
+            "background:#2a2a3d; color:#a5b4fc; border:1px solid #3b3b54; border-radius:6px; }"
+            "QPushButton:hover { background:#3b3b54; }"
         )
         layout.addWidget(self.status_light)
         layout.addWidget(self.status_text)

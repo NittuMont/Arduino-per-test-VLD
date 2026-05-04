@@ -5,9 +5,9 @@ la matricola corrente.  Legge le celle chiave direttamente dall'Excel.
 from PyQt5 import QtWidgets, QtCore, QtGui
 
 # Colori
-_COLOR_DONE    = "#107c10"   # verde
-_COLOR_PENDING = "#888888"   # grigio
-_COLOR_UNKNOWN = "#c0c0c0"   # grigio chiaro (file/matricola assente)
+_COLOR_DONE    = "#10b981"   # verde accento
+_COLOR_PENDING = "#4b5563"   # grigio scuro
+_COLOR_UNKNOWN = "#374151"   # grigio molto scuro
 
 # Ordine e label brevi dei test
 _TEST_ORDER = ["100V", "500V", "Innesco", "AT+AL", "AD"]
@@ -55,7 +55,7 @@ class TestTrackerWidget(QtWidgets.QGroupBox):
 
             lbl = QtWidgets.QLabel(name)
             lbl.setAlignment(QtCore.Qt.AlignCenter)
-            lbl.setStyleSheet("font-size:9pt; color:#555;")
+            lbl.setStyleSheet("font-size:9pt; color:#94a3b8;")
             col.addWidget(lbl)
 
             layout.addLayout(col)

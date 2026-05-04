@@ -49,8 +49,8 @@ class BleGroup(QtWidgets.QGroupBox):
             label.setFixedHeight(38)
             label.setMinimumWidth(140)
             label.setStyleSheet(
-                "background: #f0f1f5; font-size: 12pt; border-radius: 8px; "
-                "padding: 6px 8px; border: 1px solid #e0e3eb; color: #555;"
+                "background: #1e1e2e; font-size: 12pt; border-radius: 8px; "
+                "padding: 6px 8px; border: 1px solid #3b3b54; color: #94a3b8;"
             )
             grid.addWidget(label, *pos)
             self.ble_circuit_labels.append(label)

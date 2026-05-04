@@ -92,15 +92,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
     _MAINWINDOW_STYLESHEET = """
         QMainWindow {
-            background-color: #f5f6fa;
+            background-color: #1e1e2e;
         }
         QMainWindow * {
             font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 14pt;
+            font-size: 13pt;
+            color: #e2e8f0;
         }
         QGroupBox {
-            background-color: white;
-            border: 1px solid #e0e3eb;
+            background-color: #2a2a3d;
+            border: 1px solid #3b3b54;
             border-radius: 10px;
             margin-top: 18px;
             padding: 16px 14px 14px 14px;
@@ -110,23 +111,25 @@ class MainWindow(QtWidgets.QMainWindow):
             subcontrol-position: top left;
             left: 14px;
             padding: 2px 10px;
-            background-color: white;
-            border: 1px solid #e0e3eb;
+            background-color: #2a2a3d;
+            border: 1px solid #3b3b54;
             border-radius: 4px;
-            color: #444;
-            font-size: 11pt;
+            color: #a5b4fc;
+            font-size: 10pt;
             font-weight: bold;
+            text-transform: uppercase;
         }
         QLineEdit, QComboBox {
-            border: 1px solid #ccd1dc;
+            border: 1px solid #3b3b54;
             border-radius: 6px;
             padding: 6px 10px;
-            background: #fafbfd;
+            background: #1e1e2e;
+            color: #e2e8f0;
             font-size: 13pt;
-            selection-background-color: #0078d4;
+            selection-background-color: #7c3aed;
         }
         QLineEdit:focus, QComboBox:focus {
-            border-color: #0078d4;
+            border-color: #7c3aed;
         }
         QComboBox::drop-down {
             border: none;
@@ -136,13 +139,13 @@ class MainWindow(QtWidgets.QMainWindow):
             image: none;
             border-left: 5px solid transparent;
             border-right: 5px solid transparent;
-            border-top: 6px solid #555;
+            border-top: 6px solid #a5b4fc;
             margin-right: 8px;
         }
         QPushButton {
             min-height: 40px;
             padding: 6px 16px;
-            background-color: #0078d4;
+            background-color: #7c3aed;
             color: white;
             border: none;
             border-radius: 8px;
@@ -150,45 +153,48 @@ class MainWindow(QtWidgets.QMainWindow):
             font-weight: 500;
         }
         QPushButton:hover {
-            background-color: #106ebe;
+            background-color: #6d28d9;
         }
         QPushButton:pressed {
-            background-color: #005a9e;
+            background-color: #5b21b6;
         }
         QPushButton:disabled {
-            background-color: #d0d4dc;
-            color: #8a8a8a;
+            background-color: #3b3b54;
+            color: #6b7280;
         }
         QPushButton#quit_btn {
-            background-color: #d13438;
+            background-color: #ef4444;
             min-height: 36px;
             font-size: 12pt;
         }
         QPushButton#quit_btn:hover {
-            background-color: #a4262c;
+            background-color: #dc2626;
         }
         QMenuBar {
-            background: white;
-            border-bottom: 1px solid #e0e3eb;
+            background: #2a2a3d;
+            border-bottom: 1px solid #3b3b54;
             font-size: 11pt;
             padding: 2px 0;
+            color: #e2e8f0;
         }
         QMenuBar::item:selected {
-            background: #e8f0fe;
+            background: #3b3b54;
             border-radius: 4px;
         }
         QMenu {
-            background: white;
-            border: 1px solid #e0e3eb;
+            background: #2a2a3d;
+            border: 1px solid #3b3b54;
             border-radius: 6px;
             padding: 4px;
+            color: #e2e8f0;
         }
         QMenu::item {
             padding: 6px 24px;
             border-radius: 4px;
         }
         QMenu::item:selected {
-            background: #e8f0fe;
+            background: #7c3aed;
+            color: white;
         }
     """
 
@@ -312,8 +318,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._step_interval_ms = 100  # default
         self._step_interval_label = QtWidgets.QLabel(f"Step: {self._step_interval_ms} ms")
         self._step_interval_label.setStyleSheet(
-            "font-weight: bold; font-size: 10pt; color: #0078d4; "
-            "background: #e8f0fe; border-radius: 4px; padding: 3px 8px; margin-left: 12px;"
+            "font-weight: bold; font-size: 10pt; color: #a5b4fc; "
+            "background: #2a2a3d; border: 1px solid #3b3b54; border-radius: 4px; padding: 3px 8px; margin-left: 12px;"
         )
 
         # --- Barra di stato fissa in alto (unica riga: PSU + BLE + Step) ---
