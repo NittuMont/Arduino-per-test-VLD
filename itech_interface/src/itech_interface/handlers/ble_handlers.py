@@ -93,13 +93,24 @@ class BLEHandlers:
         for i in range(6):
             closed = (state_byte >> i) & 1
             label = self.main.ble_circuit_labels[i]
-            style_common = "font-size:18px; border-radius:8px; padding:6px;"
             if closed:
                 label.setText(self.main.ble_group.circuit_names[i] + ": CHIUSO")
-                label.setStyleSheet(f"background:#8f8; {style_common}")
+                label.setStyleSheet(
+                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                    "stop:0 #6ee7b7, stop:0.5 #10b981, stop:1 #059669);"
+                    "color: #022c22; font-size: 12pt; font-weight: bold; "
+                    "border-radius: 8px; padding: 6px 8px; "
+                    "border: 1px solid #065f46;"
+                )
             else:
                 label.setText(self.main.ble_group.circuit_names[i] + ": APERTO")
-                label.setStyleSheet(f"background:#f88; {style_common}")
+                label.setStyleSheet(
+                    "background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                    "stop:0 #fca5a5, stop:0.5 #ef4444, stop:1 #dc2626);"
+                    "color: #1c1917; font-size: 12pt; font-weight: bold; "
+                    "border-radius: 8px; padding: 6px 8px; "
+                    "border: 1px solid #7f1d1d;"
+                )
 
         # 2. Solo se BLE è connesso (modalità automatica)
         if not getattr(self.main, '_ble_connected_flag', False):

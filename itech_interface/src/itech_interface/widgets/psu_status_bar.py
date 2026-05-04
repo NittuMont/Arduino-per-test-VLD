@@ -10,8 +10,6 @@ class PSUStatusBar(QtWidgets.QWidget):
         self.status_light = StatusSemaphore("", "#ccc")
         self.status_text = QtWidgets.QLabel("Alimentatore")
         self.status_text.setStyleSheet("font-size:12pt; font-weight:bold; color:#e2e8f0;")
-        self.attempts_label = QtWidgets.QLabel("Tentativi: 0")
-        self.attempts_label.setStyleSheet("font-size:10pt; color:#94a3b8;")
         self.reconnect_btn = QtWidgets.QPushButton("Riconnetti")
         self.reconnect_btn.setToolTip("Tenta una nuova connessione manuale all'alimentatore")
         self.reconnect_btn.setStyleSheet(
@@ -21,7 +19,6 @@ class PSUStatusBar(QtWidgets.QWidget):
         )
         layout.addWidget(self.status_light)
         layout.addWidget(self.status_text)
-        layout.addWidget(self.attempts_label)
         layout.addWidget(self.reconnect_btn)
         layout.addStretch()
         self.setLayout(layout)
@@ -41,4 +38,4 @@ class PSUStatusBar(QtWidgets.QWidget):
             self.status_text.setText("Alimentatore")
 
     def set_attempts(self, n):
-        self.attempts_label.setText(f"Tentativi: {n}")
+        pass  # contatore rimosso dalla UI

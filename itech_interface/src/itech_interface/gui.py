@@ -114,10 +114,9 @@ class MainWindow(QtWidgets.QMainWindow):
             background-color: #2a2a3d;
             border: 1px solid #3b3b54;
             border-radius: 4px;
-            color: #a5b4fc;
-            font-size: 10pt;
+            color: #e2e8f0;
+            font-size: 11pt;
             font-weight: bold;
-            text-transform: uppercase;
         }
         QLineEdit, QComboBox {
             border: 1px solid #3b3b54;
@@ -195,6 +194,16 @@ class MainWindow(QtWidgets.QMainWindow):
         QMenu::item:selected {
             background: #7c3aed;
             color: white;
+        }
+        QMessageBox {
+            background-color: #2a2a3d;
+        }
+        QMessageBox QLabel {
+            color: #e2e8f0;
+            font-size: 12pt;
+        }
+        QMessageBox QPushButton {
+            min-width: 80px;
         }
     """
 
@@ -659,6 +668,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 # Dialog con pulsante "Prosegui" opzionale
                 dlg = QtWidgets.QDialog(self)
                 dlg.setWindowTitle("Salvataggio completato")
+                dlg.setStyleSheet(
+                    "QDialog { background-color: #2a2a3d; }"
+                    "QLabel { color: #e2e8f0; font-size: 12pt; }"
+                    "QPushButton { min-height:40px; padding:6px 16px; "
+                    "background-color:#7c3aed; color:white; border:none; "
+                    "border-radius:8px; font-size:13pt; }"
+                    "QPushButton:hover { background-color:#6d28d9; }"
+                )
                 vbox = QtWidgets.QVBoxLayout(dlg)
                 vbox.setContentsMargins(20, 20, 20, 20)
                 vbox.setSpacing(12)
