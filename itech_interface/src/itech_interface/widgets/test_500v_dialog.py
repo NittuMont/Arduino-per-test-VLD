@@ -2,11 +2,9 @@ from PyQt5 import QtWidgets, QtCore
 from .dialog_style import POPUP_STYLESHEET
 
 class Test500VDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, excel_path_edit, matricola_edit, write_to_excel, update_status, safe_power_off):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off):
         super().__init__(parent)
         self.ctrl = ctrl
-        self.excel_path_edit = excel_path_edit
-        self.matricola_edit = matricola_edit
         self.write_to_excel = write_to_excel
         self.update_status = update_status
         self.safe_power_off = safe_power_off
@@ -87,4 +85,3 @@ class Test500VDialog(QtWidgets.QDialog):
             )
             self.safe_power_off()
             self.update_status("Prova 500 V — Problema al Tiristore", "error")
-        self.accept()

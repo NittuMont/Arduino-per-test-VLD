@@ -565,7 +565,6 @@ class MainWindow(QtWidgets.QMainWindow):
         from .widgets.test_100v_dialog import Test100VDialog
         Test100VDialog(
             self, self.ctrl,
-            self.excel_path_edit, self.matricola_edit,
             self._write_to_excel, self._update_status, self._safe_power_off,
         ).exec_()
 
@@ -577,7 +576,6 @@ class MainWindow(QtWidgets.QMainWindow):
         from .widgets.test_500v_dialog import Test500VDialog
         Test500VDialog(
             self, self.ctrl,
-            self.excel_path_edit, self.matricola_edit,
             self._write_to_excel, self._update_status, self._safe_power_off,
         ).exec_()
 
