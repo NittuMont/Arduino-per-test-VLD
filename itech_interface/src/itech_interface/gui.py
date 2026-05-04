@@ -446,6 +446,9 @@ class MainWindow(QtWidgets.QMainWindow):
             value = 1
         self.matricola_edit.setText(str(max(0, value - 1)))
 
+    def _update_status(self, text: str, level: str = "info"):
+        self.result_label.set_status(text, level)
+
     def _safe_power_off(self):
         """Turn off power supply output and switch to local mode.
 
