@@ -73,6 +73,9 @@ class BLELogWindow(QtWidgets.QWidget):
         self.text_edit = QtWidgets.QPlainTextEdit(self)
         self.text_edit.setReadOnly(True)
         layout.addWidget(self.text_edit)
+        close_btn = QtWidgets.QPushButton("Chiudi")
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
         self.setLayout(layout)
     def set_log(self, log_lines):
         self.text_edit.setPlainText("\n".join(log_lines))
