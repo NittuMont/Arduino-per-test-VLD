@@ -14,8 +14,8 @@ _TEST_ORDER = ["100V", "500V", "Innesco", "AT+AL", "AD"]
 
 
 class _Dot(QtWidgets.QLabel):
-    """Piccolo cerchio colorato 14×14 px."""
-    SIZE = 14
+    """Piccolo cerchio colorato 18×18 px."""
+    SIZE = 18
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,7 +24,8 @@ class _Dot(QtWidgets.QLabel):
 
     def _apply(self, color: str):
         self.setStyleSheet(
-            f"background-color:{color}; border-radius:{self.SIZE//2}px;"
+            f"background-color:{color}; border-radius:{self.SIZE//2}px; "
+            f"border: 2px solid rgba(0,0,0,0.08);"
         )
 
     def set_done(self):    self._apply(_COLOR_DONE)

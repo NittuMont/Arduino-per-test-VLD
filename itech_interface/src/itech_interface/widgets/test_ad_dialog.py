@@ -37,7 +37,7 @@ class TestADDialog(QtWidgets.QDialog):
         self.trip_btn.setObjectName("cart_btn")
         self.trip_btn.setEnabled(False)
         layout.addWidget(self.trip_btn)
-        self.status_label = QtWidgets.QLabel(f"Tensione applicata: {self._ad_voltage} V")
+        self.status_label = QtWidgets.QLabel("Tensione applicata: — V")
         self.status_label.setObjectName("voltage_live")
         layout.addWidget(self.status_label)
         self.close_btn = QtWidgets.QPushButton("Chiudi")

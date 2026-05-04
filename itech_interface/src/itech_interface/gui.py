@@ -92,20 +92,62 @@ class MainWindow(QtWidgets.QMainWindow):
 
     _MAINWINDOW_STYLESHEET = """
         QMainWindow {
-            background-color: #f0f2f5;
+            background-color: #f5f6fa;
         }
         QMainWindow * {
             font-family: 'Segoe UI', Arial, sans-serif;
-            font-size: 15pt;
+            font-size: 14pt;
+        }
+        QGroupBox {
+            background-color: white;
+            border: 1px solid #e0e3eb;
+            border-radius: 10px;
+            margin-top: 18px;
+            padding: 16px 14px 14px 14px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 14px;
+            padding: 2px 10px;
+            background-color: white;
+            border: 1px solid #e0e3eb;
+            border-radius: 4px;
+            color: #444;
+            font-size: 11pt;
+            font-weight: bold;
+        }
+        QLineEdit, QComboBox {
+            border: 1px solid #ccd1dc;
+            border-radius: 6px;
+            padding: 6px 10px;
+            background: #fafbfd;
+            font-size: 13pt;
+            selection-background-color: #0078d4;
+        }
+        QLineEdit:focus, QComboBox:focus {
+            border-color: #0078d4;
+        }
+        QComboBox::drop-down {
+            border: none;
+            width: 28px;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #555;
+            margin-right: 8px;
         }
         QPushButton {
-            min-height: 46px;
-            padding: 8px 18px;
+            min-height: 40px;
+            padding: 6px 16px;
             background-color: #0078d4;
             color: white;
             border: none;
-            border-radius: 6px;
-            font-size: 15pt;
+            border-radius: 8px;
+            font-size: 13pt;
+            font-weight: 500;
         }
         QPushButton:hover {
             background-color: #106ebe;
@@ -114,14 +156,39 @@ class MainWindow(QtWidgets.QMainWindow):
             background-color: #005a9e;
         }
         QPushButton:disabled {
-            background-color: #b0b0b0;
-            color: #e0e0e0;
+            background-color: #d0d4dc;
+            color: #8a8a8a;
         }
         QPushButton#quit_btn {
             background-color: #d13438;
+            min-height: 36px;
+            font-size: 12pt;
         }
         QPushButton#quit_btn:hover {
             background-color: #a4262c;
+        }
+        QMenuBar {
+            background: white;
+            border-bottom: 1px solid #e0e3eb;
+            font-size: 11pt;
+            padding: 2px 0;
+        }
+        QMenuBar::item:selected {
+            background: #e8f0fe;
+            border-radius: 4px;
+        }
+        QMenu {
+            background: white;
+            border: 1px solid #e0e3eb;
+            border-radius: 6px;
+            padding: 4px;
+        }
+        QMenu::item {
+            padding: 6px 24px;
+            border-radius: 4px;
+        }
+        QMenu::item:selected {
+            background: #e8f0fe;
         }
     """
 
@@ -192,11 +259,6 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(0, self._start_psu_connect)
         # WARNING: chiamare _setup_ui SOLO dal costruttore!
 
-        # Layout principale orizzontale
-        self.main_layout = QtWidgets.QHBoxLayout()
-        self.main_layout.setSpacing(24)
-        self.main_layout.setContentsMargins(24, 24, 24, 24)
-
         # Colonna sinistra (tutto tranne BLE)
         self.left_col = QtWidgets.QVBoxLayout()
         self.left_col.setSpacing(14)
@@ -218,24 +280,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.excel_path_edit.textChanged.connect(lambda _: self._refresh_tracker())
         self.matricola_edit.textChanged.connect(lambda _: self._refresh_tracker())
 
-        # ManualGroup
-        self.manual_group = ManualGroup()
-        self.left_col.addWidget(self.manual_group)
-        self.voltage_100_btn = self.manual_group.voltage_100_btn
-        self.voltage_500_btn = self.manual_group.voltage_500_btn
-        self.voltage_100_btn.clicked.connect(self.on_test_100v)
-        self.voltage_500_btn.clicked.connect(self.on_test_500v)
-
-        # TestGroup
-        self.test_group = TestGroup()
-        self.left_col.addWidget(self.test_group)
-        self.ad_btn = self.test_group.ad_btn
-        self.ad_al_btn = self.test_group.ad_al_btn
-        self.innesco_btn = self.test_group.innesco_btn
-        self.ad_btn.clicked.connect(self.on_test_anomalia_diodo)
-        self.ad_al_btn.clicked.connect(self.on_test_anomalia_tiristore_limiti)
-        self.innesco_btn.clicked.connect(self.on_test_innesco_tiristore)
-
         # BLE Monitor
         self.ble_group = BleGroup()
         self.right_col.addWidget(self.ble_group)
@@ -246,28 +290,59 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_device_combo = self.ble_group.ble_device_combo
         self.ble_circuit_labels = self.ble_group.ble_circuit_labels
 
+        # ManualGroup
+        self.manual_group = ManualGroup()
+        self.right_col.addWidget(self.manual_group)
+        self.voltage_100_btn = self.manual_group.voltage_100_btn
+        self.voltage_500_btn = self.manual_group.voltage_500_btn
+        self.voltage_100_btn.clicked.connect(self.on_test_100v)
+        self.voltage_500_btn.clicked.connect(self.on_test_500v)
+
+        # TestGroup
+        self.test_group = TestGroup()
+        self.right_col.addWidget(self.test_group)
+        self.ad_btn = self.test_group.ad_btn
+        self.ad_al_btn = self.test_group.ad_al_btn
+        self.innesco_btn = self.test_group.innesco_btn
+        self.ad_btn.clicked.connect(self.on_test_anomalia_diodo)
+        self.ad_al_btn.clicked.connect(self.on_test_anomalia_tiristore_limiti)
+        self.innesco_btn.clicked.connect(self.on_test_innesco_tiristore)
+
         # Crea la label step PRIMA del layout
         self._step_interval_ms = 100  # default
         self._step_interval_label = QtWidgets.QLabel(f"Step: {self._step_interval_ms} ms")
-        self._step_interval_label.setStyleSheet("font-weight: bold; margin-left: 16px;")
-        # Layout barra di stato alimentatore e BLE + label step
-        status_bars = QtWidgets.QVBoxLayout()
-        # Riga 1: PSU
-        psu_row = QtWidgets.QHBoxLayout()
+        self._step_interval_label.setStyleSheet(
+            "font-weight: bold; font-size: 10pt; color: #0078d4; "
+            "background: #e8f0fe; border-radius: 4px; padding: 3px 8px; margin-left: 12px;"
+        )
+
+        # --- Barra di stato fissa in alto (unica riga: PSU + BLE + Step) ---
+        status_row = QtWidgets.QHBoxLayout()
+        status_row.setSpacing(16)
         self.psu_status_bar = PSUStatusBar()
         self.psu_status_bar.reconnect_btn.clicked.connect(self._on_psu_reconnect_clicked)
-        psu_row.addWidget(self.psu_status_bar)
-        psu_row.addStretch()
-        status_bars.addLayout(psu_row)
-        # Riga 2: BLE + label step
-        ble_row = QtWidgets.QHBoxLayout()
+        status_row.addWidget(self.psu_status_bar)
         self.ble_status_bar = BLEStatusBar()
         self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
-        ble_row.addWidget(self.ble_status_bar)
-        ble_row.addWidget(self._step_interval_label)
-        ble_row.addStretch()
-        status_bars.addLayout(ble_row)
-        self.left_col.insertLayout(0, status_bars)
+        status_row.addWidget(self.ble_status_bar)
+        status_row.addWidget(self._step_interval_label)
+        status_row.addStretch()
+
+        # Layout verticale globale: status_row + contenuto
+        outer_layout = QtWidgets.QVBoxLayout()
+        outer_layout.setSpacing(12)
+        outer_layout.setContentsMargins(20, 14, 20, 20)
+        outer_layout.addLayout(status_row)
+
+        # Layout principale orizzontale (sotto la barra di stato)
+        self.main_layout = QtWidgets.QHBoxLayout()
+        self.main_layout.setSpacing(20)
+        outer_layout.addLayout(self.main_layout)
+
+        # BLE Monitor nella colonna destra con dimensioni fisse (no stretch)
+        self.ble_group.setSizePolicy(
+            QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Fixed
+        )
 
         # Result label e quit
         self.result_label = ResultLabel()
@@ -284,13 +359,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.quit_btn.clicked.connect(self.close)
         self.left_col.addWidget(self.quit_btn)
 
+        # Stretch in fondo alla colonna destra per evitare che i widget si espandano
+        self.right_col.addStretch()
+
         # Unisci colonne nel layout principale
         self.main_layout.addLayout(self.left_col, stretch=3)
         self.main_layout.addLayout(self.right_col, stretch=2)
 
         # Widget centrale
         central = QtWidgets.QWidget()
-        central.setLayout(self.main_layout)
+        central.setLayout(outer_layout)
         self.setCentralWidget(central)
 
         # SOLO ORA crea la barra menu impostazioni (dopo il central widget)

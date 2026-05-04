@@ -6,10 +6,11 @@ class ResultLabel(QtWidgets.QLabel):
         self.setAlignment(QtCore.Qt.AlignCenter)
         self.setStyleSheet("""
             QLabel {
-                background-color: #e8e8e8;
-                border-radius: 6px;
-                padding: 10px;
-                font-size: 15pt;
+                background-color: #f0f1f5;
+                border: 1px solid #e0e3eb;
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 14pt;
                 font-weight: bold;
                 color: #555;
             }
@@ -17,18 +18,19 @@ class ResultLabel(QtWidgets.QLabel):
 
     def set_status(self, text, level="info"):
         colours = {
-            "info":    ("#e8e8e8", "#555"),
-            "ok":      ("#dff6dd", "#107c10"),
-            "error":   ("#fde7e9", "#d13438"),
-            "working": ("#fff4ce", "#8a6d00"),
+            "info":    ("#f0f1f5", "#555", "#e0e3eb"),
+            "ok":      ("#e6f9e6", "#107c10", "#a3d9a3"),
+            "error":   ("#fde7e9", "#d13438", "#f5b3b5"),
+            "working": ("#fff8e1", "#7a5c00", "#ffe082"),
         }
-        bg, fg = colours.get(level, colours["info"])
+        bg, fg, border = colours.get(level, colours["info"])
         self.setStyleSheet(f"""
             QLabel {{
                 background-color: {bg};
-                border-radius: 6px;
-                padding: 10px;
-                font-size: 15pt;
+                border: 1px solid {border};
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 14pt;
                 font-weight: bold;
                 color: {fg};
             }}

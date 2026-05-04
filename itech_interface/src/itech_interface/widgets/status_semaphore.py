@@ -5,9 +5,16 @@ class StatusSemaphore(QtWidgets.QLabel):
         super().__init__(parent)
         self.setText(label_text)
         self.setAlignment(QtCore.Qt.AlignCenter)
-        self.setFixedHeight(36)
-        self.setStyleSheet(f"background:{color}; font-size:15pt; border-radius:8px; padding:8px;")
+        self.setFixedSize(16, 16)
+        self._set_color(color)
+
+    def _set_color(self, color):
+        self.setStyleSheet(
+            f"background-color: {color}; "
+            f"border-radius: 8px; "
+            f"border: 2px solid rgba(0,0,0,0.1);"
+        )
 
     def set_status(self, label_text, color):
         self.setText(label_text)
-        self.setStyleSheet(f"background:{color}; font-size:15pt; border-radius:8px; padding:8px;")
+        self._set_color(color)

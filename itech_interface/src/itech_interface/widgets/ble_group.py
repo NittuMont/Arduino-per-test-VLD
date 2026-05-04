@@ -11,20 +11,21 @@ class BleGroup(QtWidgets.QGroupBox):
     def __init__(self, parent=None):
         super().__init__("Monitor BLE 6 Circuiti", parent)
         layout = QtWidgets.QVBoxLayout()
-        # RIMOSSO: self.ble_status_label
-        ble_btn_layout = QtWidgets.QHBoxLayout()
+        # --- Pulsanti e combo commentati (non servono nell'uso corrente) ---
+        # ble_btn_layout = QtWidgets.QHBoxLayout()
         self.ble_scan_btn = QtWidgets.QPushButton("Scansiona BLE")
-        ble_btn_layout.addWidget(self.ble_scan_btn)
+        # ble_btn_layout.addWidget(self.ble_scan_btn)
         self.ble_connect_btn = QtWidgets.QPushButton("Connetti BLE")
         self.ble_connect_btn.setEnabled(False)
-        ble_btn_layout.addWidget(self.ble_connect_btn)
+        # ble_btn_layout.addWidget(self.ble_connect_btn)
         self.ble_bypass_btn = QtWidgets.QPushButton("Bypass BLE (solo alimentatore)")
         self.ble_bypass_btn.setCheckable(True)
-        ble_btn_layout.addWidget(self.ble_bypass_btn)
-        layout.addLayout(ble_btn_layout)
+        # ble_btn_layout.addWidget(self.ble_bypass_btn)
+        # layout.addLayout(ble_btn_layout)
         self.ble_device_combo = QtWidgets.QComboBox()
         self.ble_device_combo.setEditable(False)
-        layout.addWidget(self.ble_device_combo)
+        # layout.addWidget(self.ble_device_combo)
+        # --- Fine sezione commentata ---
         self.ble_circuit_labels = []
         grid = QtWidgets.QGridLayout()
         # Nuovo ordine richiesto:
@@ -45,8 +46,12 @@ class BleGroup(QtWidgets.QGroupBox):
         for i, pos in enumerate(positions):
             label = QtWidgets.QLabel(f"{self.circuit_names[i]}: ?")
             label.setAlignment(QtCore.Qt.AlignCenter)
-            # Dimensioni e stile originali, nessuno stretch forzato
-            label.setStyleSheet("background:#ccc; font-size:18px; border-radius:8px; padding:6px;")
+            label.setFixedHeight(38)
+            label.setMinimumWidth(140)
+            label.setStyleSheet(
+                "background: #f0f1f5; font-size: 12pt; border-radius: 8px; "
+                "padding: 6px 8px; border: 1px solid #e0e3eb; color: #555;"
+            )
             grid.addWidget(label, *pos)
             self.ble_circuit_labels.append(label)
         layout.addLayout(grid)

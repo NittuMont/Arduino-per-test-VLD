@@ -32,7 +32,7 @@ class TestInnescoDialog(QtWidgets.QDialog):
         self.start_btn = QtWidgets.QPushButton("INIZIO TEST")
         self.start_btn.setObjectName("start_btn")
         layout.addWidget(self.start_btn)
-        self.voltage_label = QtWidgets.QLabel(f"Tensione applicata: {self._innesco_voltage} V")
+        self.voltage_label = QtWidgets.QLabel("Tensione applicata: — V")
         self.voltage_label.setObjectName("voltage_live")
         layout.addWidget(self.voltage_label)
         self.status_label = QtWidgets.QLabel("Test Innesco: Attendere il completamento del test")

@@ -35,7 +35,7 @@ class TestATALDialog(QtWidgets.QDialog):
         self.start_btn = QtWidgets.QPushButton("INIZIO TEST")
         self.start_btn.setObjectName("start_btn")
         layout.addWidget(self.start_btn)
-        self.status_label = QtWidgets.QLabel(f"Tensione applicata: {self._at_al_voltage} V")
+        self.status_label = QtWidgets.QLabel("Tensione applicata: — V")
         self.status_label.setObjectName("voltage_live")
         layout.addWidget(self.status_label)
         self.cart1_btn = QtWidgets.QPushButton("Cartellino 1 scattato")
