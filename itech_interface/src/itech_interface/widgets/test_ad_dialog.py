@@ -2,15 +2,16 @@ from PyQt5 import QtWidgets, QtCore
 from .dialog_style import POPUP_STYLESHEET
 
 class TestADDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off,
+                 timer_step_ms=None, next_test_callback=None):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
         self.update_status = update_status
         self.safe_power_off = safe_power_off
+        self._next_test_callback = next_test_callback
         self.setWindowTitle("Anomalia Diodo (AD)")
         self._ad_voltage = 87  # AD_START_VOLTAGE
-        # timer_step_ms: valore scelto dall'utente, default 1000ms se non specificato
         self._timer_interval = timer_step_ms if timer_step_ms is not None else 1000
         self._setup_ui()
 
@@ -76,7 +77,6 @@ class TestADDialog(QtWidgets.QDialog):
 
     def on_relay_tripped(self):
         """Chiamato dal BLE handler quando il relè AD scatta."""
-        print(f"[DEBUG][AD] on_relay_tripped: V={self._ad_voltage}")
         self._ad_tripped()
 
     def _ad_tripped(self):
@@ -93,6 +93,7 @@ class TestADDialog(QtWidgets.QDialog):
             lambda handler, row: handler.write_ad_results(row, self._ad_voltage),
             summary=summary,
             popup_to_close=self,
+            next_test_label="Prosegui con test AL+AT" if self._next_test_callback else None,
+            next_test_callback=self._next_test_callback,
         )
         self.update_status("Test AD completato", "ok")
-        self.accept()

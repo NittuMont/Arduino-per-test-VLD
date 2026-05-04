@@ -1,6 +1,6 @@
 """GUI implementation using PyQt5."""
 from PyQt5 import QtWidgets, QtCore
-from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel, BLEStatusBar, AsyncBLEWorker
+from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel, BLEStatusBar, AsyncBLEWorker, TestTrackerWidget
 from .handlers.ble_handlers import BLEHandlers
 import datetime
 from .controller import PowerSupplyController
@@ -144,7 +144,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_test_anomalia_tiristore_limiti(self):
         """Apre la finestra del test AT+AL (Anomalia Tiristore + Limiti)."""
-        self._stop_all_tests()
         self._start_at_al_test()
     def _on_psu_reconnect_clicked(self):
         self._start_psu_connect()
@@ -216,6 +215,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.matricola_edit = self.excel_group.matricola_edit
         self.matricola_dec_btn = self.excel_group.matricola_dec_btn
         self.matricola_inc_btn = self.excel_group.matricola_inc_btn
+        self.excel_path_edit.textChanged.connect(lambda _: self._refresh_tracker())
+        self.matricola_edit.textChanged.connect(lambda _: self._refresh_tracker())
 
         # ManualGroup
         self.manual_group = ManualGroup()
@@ -271,6 +272,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Result label e quit
         self.result_label = ResultLabel()
         self.left_col.addWidget(self.result_label)
+
+        # Tracker stato test
+        self.test_tracker = TestTrackerWidget()
+        self.left_col.addWidget(self.test_tracker)
+
         self.left_col.addStretch()
 
         self.quit_btn = QtWidgets.QPushButton("Esci")
@@ -454,6 +460,26 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_status(self, text: str, level: str = "info"):
         self.result_label.set_status(text, level)
 
+    def _refresh_tracker(self):
+        """Rilegge l'Excel e aggiorna il tracker per la matricola corrente."""
+        excel_path = self.excel_path_edit.text()
+        matricola  = self.matricola_edit.text().strip()
+        if not excel_path or not matricola:
+            self.test_tracker.set_unknown()
+            return
+        try:
+            handler = ExcelHandler(excel_path)
+            row = handler.find_row_by_matricola(matricola)
+            if row is None:
+                handler.close()
+                self.test_tracker.set_unknown()
+                return
+            status = handler.get_test_status(row)
+            handler.close()
+            self.test_tracker.update_status(status)
+        except Exception:
+            self.test_tracker.set_unknown()
+
     def _safe_power_off(self):
         """Turn off power supply output and switch to local mode.
 
@@ -487,18 +513,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self._heartbeat_timer.isActive():
             self._heartbeat_timer.start(HEARTBEAT_INTERVAL_MS)
 
-    def _write_to_excel(self, write_func, summary="", popup_to_close=None):
+    def _write_to_excel(self, write_func, summary="", popup_to_close=None,
+                        next_test_label=None, next_test_callback=None):
         """Validate inputs, open the workbook, find the matricola row,
         call *write_func(handler, row)* and show success/error dialogs.
 
-        *summary*          — human-readable description of written data,
-                             shown in the success dialog.
-        *popup_to_close*   — QDialog to close automatically when the test
-                             is finished (regardless of write outcome).
-
-        The power supply is always switched off at the beginning of this
-        method because any caller has already completed its measurement;
-        keeping it on while writing / showing dialogs is a safety risk.
+        *summary*            — human-readable description of written data.
+        *popup_to_close*     — QDialog to close automatically when the test is finished.
+        *next_test_label*    — label for the "Prosegui" button (None = no button).
+        *next_test_callback* — callable invoked when the user clicks "Prosegui".
         """
         # --- Spegnimento immediato: il test è terminato ---
         self._safe_power_off()
@@ -545,12 +568,36 @@ class MainWindow(QtWidgets.QMainWindow):
                     "\n".join(errors)
                 )
             else:
+                self._refresh_tracker()
                 msg = "Dati salvati correttamente nel file Excel."
                 if summary:
                     msg += f"\n\n{summary}"
-                QtWidgets.QMessageBox.information(
-                    self, "Salvataggio completato", msg
-                )
+                # Dialog con pulsante "Prosegui" opzionale
+                dlg = QtWidgets.QDialog(self)
+                dlg.setWindowTitle("Salvataggio completato")
+                vbox = QtWidgets.QVBoxLayout(dlg)
+                vbox.setContentsMargins(20, 20, 20, 20)
+                vbox.setSpacing(12)
+                lbl = QtWidgets.QLabel(msg)
+                lbl.setWordWrap(True)
+                vbox.addWidget(lbl)
+                btn_row = QtWidgets.QHBoxLayout()
+                ok_btn = QtWidgets.QPushButton("OK")
+                ok_btn.clicked.connect(dlg.accept)
+                btn_row.addWidget(ok_btn)
+                if next_test_label and next_test_callback:
+                    next_btn = QtWidgets.QPushButton(next_test_label)
+                    next_btn.setDefault(True)
+                    next_btn.setAutoDefault(True)
+                    next_btn.clicked.connect(dlg.accept)
+                    next_btn.clicked.connect(next_test_callback)
+                    btn_row.addWidget(next_btn)
+                    next_btn.setFocus()
+                else:
+                    ok_btn.setDefault(True)
+                    ok_btn.setFocus()
+                vbox.addLayout(btn_row)
+                dlg.exec_()
         except Exception as e:
             QtWidgets.QMessageBox.critical(
                 self, "Errore",
@@ -637,7 +684,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._write_to_excel,
             self._update_status,
             self._safe_power_off,
-            timer_step_ms=self._ad_timer_interval_ms
+            timer_step_ms=self._ad_timer_interval_ms,
+            next_test_callback=self._start_at_al_test,
         )
         self._ad_test_active = True
         self._ad_dialog.finished.connect(self._close_ad_test)
@@ -647,6 +695,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._close_test('_innesco_test_active', '_innesco_dialog', self._close_innesco_test)
 
     def _start_at_al_test(self):
+        self._stop_all_tests()
         from .widgets.test_atal_dialog import TestATALDialog
         self._at_al_dialog = TestATALDialog(
             self,
@@ -654,7 +703,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._write_to_excel,
             self._update_status,
             self._safe_power_off,
-            timer_step_ms=self._at_al_timer_interval_ms
+            timer_step_ms=self._at_al_timer_interval_ms,
+            next_test_callback=self.on_test_innesco_tiristore,
         )
         self._at_al_test_active = True
         self._at_al_dialog.finished.connect(self._close_at_al_test)

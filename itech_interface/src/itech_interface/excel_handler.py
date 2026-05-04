@@ -198,3 +198,23 @@ class ExcelHandler:
 
         self.save()
         return errors
+
+    def get_test_status(self, row: int) -> dict:
+        """Return {test_name: bool} — True if that test has been recorded.
+
+        Uses the primary result cell for each test as presence indicator:
+          100V    → col B  (2)
+          500V    → col F  (6)
+          Innesco → col H  (8)
+          AT+AL   → col O  (15)
+          AD      → col T  (20)
+        """
+        def filled(col):
+            return self.ws_data.cell(row, col).value is not None
+        return {
+            '100V':    filled(2),
+            '500V':    filled(6),
+            'Innesco': filled(8),
+            'AT+AL':   filled(15),
+            'AD':      filled(20),
+        }

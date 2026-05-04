@@ -5,15 +5,16 @@ class TestATALDialog(QtWidgets.QDialog):
     # Step timer AT+AL: ora con 100ms, 50ms, 30ms, 25ms
     AT_AL_TIMER_STEPS_MS = [100, 50, 30, 25]
 
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off,
+                 timer_step_ms=None, next_test_callback=None):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
         self.update_status = update_status
         self.safe_power_off = safe_power_off
+        self._next_test_callback = next_test_callback
         self.setWindowTitle("Test AT e AL")
         self._at_al_voltage = 88  # AT_AL_START_VOLTAGE
-        # timer_step_ms: valore scelto dall'utente, default 1000ms se non specificato
         self._timer_interval = timer_step_ms if timer_step_ms is not None else 1000
         self._setup_ui()
 
@@ -98,7 +99,6 @@ class TestATALDialog(QtWidgets.QDialog):
 
     def on_relay_tripped(self, relay_name):
         """Chiamato dal BLE handler quando un relè (AL o AT) scatta."""
-        print(f"[DEBUG][AT+AL] on_relay_tripped: relay={relay_name}, V={self._at_al_voltage}")
         self._record_trip()
 
     def _cart1(self):
@@ -116,11 +116,9 @@ class TestATALDialog(QtWidgets.QDialog):
             self._at_al_cart1_value = v
             self.cart1_label.setText(f"Cartellino1: {v} V")
             self.cart2_btn.setEnabled(True)
-            print(f"[DEBUG][AT+AL] Primo scatto registrato a {v} V")
         elif self._at_al_cart2_value is None:
             self._at_al_cart2_value = v
             self.cart2_label.setText(f"Cartellino2: {v} V")
-            print(f"[DEBUG][AT+AL] Secondo scatto registrato a {v} V")
             self._finalize()
 
     def _finalize(self):
@@ -130,10 +128,6 @@ class TestATALDialog(QtWidgets.QDialog):
         if self._at_al_cart1_value is None or self._at_al_cart2_value is None:
             return
         min_value = min(self._at_al_cart1_value, self._at_al_cart2_value)
-        print(
-            f"[DEBUG][AT+AL] Salvo: min={min_value}, "
-            f"cart1={self._at_al_cart1_value}, cart2={self._at_al_cart2_value}"
-        )
         summary = (
             f"Anomalia Tiristore e Limiti (AT+AL)\n"
             f"Tensione Cartellino 1: {self._at_al_cart1_value} V\n"
@@ -145,6 +139,7 @@ class TestATALDialog(QtWidgets.QDialog):
             lambda handler, row: handler.write_at_al_results(row, min_value),
             summary=summary,
             popup_to_close=self,
+            next_test_label="Prosegui con test INNESCO" if self._next_test_callback else None,
+            next_test_callback=self._next_test_callback,
         )
         self.update_status("Test AT+AL completato", "ok")
-        self.accept()

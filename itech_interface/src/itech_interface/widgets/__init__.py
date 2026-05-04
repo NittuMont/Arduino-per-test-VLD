@@ -7,3 +7,4 @@ from .psu_status_bar import PSUStatusBar
 from .result_label import ResultLabel
 from .ble_worker import AsyncBLEWorker
 from .ble_status_bar import BLEStatusBar
+from .test_tracker import TestTrackerWidget
