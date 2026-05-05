@@ -101,6 +101,8 @@ class TestATALDialog(QtWidgets.QDialog):
 
     def on_relay_tripped(self, relay_name):
         """Chiamato dal BLE handler quando un relè (AL o AT) scatta."""
+        if not (hasattr(self, '_timer') and self._timer.isActive()):
+            return  # test non ancora avviato o già terminato
         self._record_trip()
 
     def _cart1(self):

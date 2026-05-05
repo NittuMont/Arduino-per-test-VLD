@@ -79,6 +79,8 @@ class TestADDialog(QtWidgets.QDialog):
 
     def on_relay_tripped(self):
         """Chiamato dal BLE handler quando il relè AD scatta."""
+        if not (hasattr(self, '_timer') and self._timer.isActive()):
+            return  # test non ancora avviato o già terminato
         self._ad_tripped()
 
     def _ad_tripped(self):

@@ -24,6 +24,11 @@ class BLEHandlers:
         self._anomaly_timers = [None] * 3
         self._relay_anomaly = [False] * 3
         # (bit_ON, bit_OFF, nome) — indici: 0=AD, 1=AL, 2=AT
+        # Firmware CIRCUIT_PINS order: [AT_ON=0, AL_ON=1, AD_ON=2, AT_OFF=3, AL_OFF=4, AD_OFF=5]
+        # Lo scatto si rileva quando il circuito OFF passa da APERTO→CHIUSO (bit_off 0→1).
+        # AD: bit_on=2 (D3/AD_ON), bit_off=5 (D2/AD_OFF)
+        # AL: bit_on=1 (D7/AL_ON), bit_off=4 (D6/AL_OFF)
+        # AT: bit_on=0 (D12/AT_ON), bit_off=3 (D11/AT_OFF)
         self._relay_map = [
             (2, 5, "AD"),
             (1, 4, "AL"),
