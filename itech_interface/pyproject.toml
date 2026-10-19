@@ -10,7 +10,8 @@ license = {text = "MIT"}
 requires-python = ">=3.8"
 dependencies = [
     "PyQt5",
-    "openpyxl"
+    "openpyxl",
+    "bleak"
 ]
 # or use tkinter built-in; PyQt5 provides richer GUI
 

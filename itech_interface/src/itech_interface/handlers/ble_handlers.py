@@ -40,12 +40,21 @@ class BLEHandlers:
     # ------------------------------------------------------------------
 
     def reset_all_relay_timers_and_flags(self):
-        """Ferma tutti i timer anomalia e resetta i flag di stato relè."""
+        """Ferma tutti i timer anomalia e resetta i flag di stato relè.
+
+        Invia anche un comando READY all'Arduino così _prev_state viene aggiornato
+        allo stato reale prima che il nuovo test inizi, senza dover resettare
+        _first_state_received (che causerebbe la perdita della prima transizione).
+        """
         for i in range(len(self._anomaly_timers)):
             if self._anomaly_timers[i] is not None:
                 self._anomaly_timers[i].stop()
             self._anomaly_timers[i] = None
             self._relay_anomaly[i] = False
+        # Chiedi allo stato corrente dell'Arduino per sincronizzare _prev_state
+        # prima che il prossimo test rilevi transizioni.
+        if hasattr(self.main, 'ble_worker'):
+            self.main.ble_worker.request_state_update()
 
     # ------------------------------------------------------------------
     # BLE device discovery & connection
@@ -177,6 +186,14 @@ class BLEHandlers:
         )
         if not test_active:
             return
+        # Controlla che il timer del test sia effettivamente in esecuzione
+        # (evita falsi allarmi mentre la finestra è aperta ma INIZIO TEST non è stato premuto)
+        if relay_idx == 0:
+            dlg = getattr(self.main, '_ad_dialog', None)
+        else:
+            dlg = getattr(self.main, '_at_al_dialog', None)
+        if dlg is None or not (hasattr(dlg, '_timer') and dlg._timer.isActive()):
+            return
         self._relay_anomaly[relay_idx] = True
         stop_fn = self.main._close_ad_test if relay_idx == 0 else self.main._close_at_al_test
         QtWidgets.QMessageBox.critical(
@@ -240,13 +257,11 @@ class BLEHandlers:
         self.main.ble_status_bar.set_status('ok')
         self.main._ble_connected_flag = True
         self._first_state_received = False
-        # Con BLE attivo: step tensione veloci (100 ms)
         self.main._on_step_interval_selected(100)
 
     def on_ble_disconnected(self):
         self.main.ble_status_bar.set_status('fail')
         self.main._ble_connected_flag = False
-        # Senza BLE: step tensione lenti (1000 ms)
         self.main._on_step_interval_selected(1000)
         QtWidgets.QMessageBox.warning(
             self.main, "Connessione BLE",

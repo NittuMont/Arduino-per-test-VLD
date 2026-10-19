@@ -19,6 +19,7 @@ class AsyncBLEWorker(QtCore.QThread):
         self._connect_device = None
         self._client = None
         self._scan_requested = False
+        self._ready_requested = False
 
     def run(self):
         import traceback
@@ -38,6 +39,9 @@ class AsyncBLEWorker(QtCore.QThread):
             if self._connect_device:
                 await self._connect_and_notify(self._connect_device)
                 self._connect_device = None
+            if self._ready_requested:
+                self._ready_requested = False
+                await self._send_ready()
 
     def scan_ble(self):
         self._scan_requested = True
@@ -54,6 +58,20 @@ class AsyncBLEWorker(QtCore.QThread):
 
     def connect_device(self, device):
         self._connect_device = device
+
+    def request_state_update(self):
+        """Richiede allo stato corrente all'Arduino tramite comando READY.
+        Usato per sincronizzare _prev_state prima di ogni test.
+        """
+        self._ready_requested = True
+
+    async def _send_ready(self):
+        """Invia READY all'Arduino se connesso, per ottenere lo stato corrente."""
+        if self._client and self._client.is_connected:
+            try:
+                await self._client.write_gatt_char(ACK_CHAR_UUID, b"READY")
+            except Exception as e:
+                print(f"[DEBUG] Errore invio READY: {e}")
 
     async def _connect_and_notify(self, device):
         import traceback

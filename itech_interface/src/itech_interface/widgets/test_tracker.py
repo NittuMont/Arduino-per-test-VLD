@@ -16,8 +16,8 @@ _ALL_TESTS = _ROW_TOP + _ROW_BOTTOM
 
 
 class _Dot(QtWidgets.QLabel):
-    """Cerchio colorato 24×24 px."""
-    SIZE = 24
+    """Cerchio colorato 32×32 px."""
+    SIZE = 32
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -43,16 +43,22 @@ class TestTrackerWidget(QtWidgets.QGroupBox):
         self.setFlat(True)
         outer = QtWidgets.QVBoxLayout(self)
         outer.setContentsMargins(10, 8, 10, 8)
-        outer.setSpacing(16)
+        outer.setSpacing(22)
 
         self._dots: dict[str, _Dot] = {}
 
+        _COL_WIDTH = 80  # larghezza fissa per ogni blocco pallino+label
+
         for row_names in (_ROW_TOP, _ROW_BOTTOM):
             row_layout = QtWidgets.QHBoxLayout()
-            row_layout.setSpacing(24)
+            row_layout.setSpacing(48)
             row_layout.setAlignment(QtCore.Qt.AlignCenter)
             for name in row_names:
-                col = QtWidgets.QVBoxLayout()
+                # Contenitore a larghezza fissa per centrare il blocco
+                cell = QtWidgets.QWidget()
+                cell.setFixedWidth(_COL_WIDTH)
+                col = QtWidgets.QVBoxLayout(cell)
+                col.setContentsMargins(0, 0, 0, 0)
                 col.setSpacing(2)
                 col.setAlignment(QtCore.Qt.AlignCenter)
 
@@ -65,7 +71,7 @@ class TestTrackerWidget(QtWidgets.QGroupBox):
                 lbl.setStyleSheet("font-size:10pt; color:#e2e8f0; font-weight:bold;")
                 col.addWidget(lbl)
 
-                row_layout.addLayout(col)
+                row_layout.addWidget(cell)
             outer.addLayout(row_layout)
 
     # ------------------------------------------------------------------

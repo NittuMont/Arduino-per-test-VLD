@@ -1,0 +1,37 @@
+// Original BLE firmware backup
+// Rinominato da ble_state_monitor.ino per test seriale
+
+#include <Arduino.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// === UUIDs BLE custom ===
+#define SERVICE_UUID        "b7e2e8c0-0000-4b1a-8e1e-000000000001"
+#define STATE_CHAR_UUID     "b7e2e8c0-0001-4b1a-8e1e-000000000002"
+#define ACK_CHAR_UUID       "b7e2e8c0-0002-4b1a-8e1e-000000000003"
+
+const uint8_t INPUT_PINS[6] = {2, 3, 4, 5, 6, 7};
+#define LED_RED      46
+#define LED_GREEN     0
+#define LED_BLUE     45
+#define LED_BUILTIN  48
+
+volatile uint8_t circuitState = 0;
+volatile bool stateChanged = false;
+volatile unsigned long lastChangeTime = 0;
+volatile bool ackReceived = false;
+volatile bool waitingAck = false;
+
+BLECharacteristic *stateChar;
+BLECharacteristic *ackChar;
+BLEServer *bleServer;
+
+const uint32_t RETRANSMIT_INTERVAL_MS = 20;
+const uint32_t TIMEOUT_MS = 150;
+uint8_t lastSentState = 0;
+unsigned long transmitStart = 0;
+unsigned long lastTransmit = 0;
+
+// ...rest of the code unchanged...

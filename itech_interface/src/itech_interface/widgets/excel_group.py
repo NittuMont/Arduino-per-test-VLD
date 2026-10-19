@@ -1,4 +1,4 @@
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 
 class ExcelGroup(QtWidgets.QGroupBox):
     def __init__(self, parent=None):

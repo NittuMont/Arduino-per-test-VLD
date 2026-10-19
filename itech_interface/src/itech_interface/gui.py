@@ -223,6 +223,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._connection_lost = False
         self._closing = False
         self._psu_attempt = 0
+        self._excel_full_path = ''
         self._ad_test_active = False
         self._at_al_test_active = False
         self._innesco_test_active = False
@@ -292,11 +293,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Colonna sinistra (tutto tranne BLE)
         self.left_col = QtWidgets.QVBoxLayout()
-        self.left_col.setSpacing(14)
+        self.left_col.setSpacing(28)
 
         # Colonna destra (BLE)
         self.right_col = QtWidgets.QVBoxLayout()
-        self.right_col.setSpacing(14)
+        self.right_col.setSpacing(28)
 
         # Excel
         self.excel_group = ExcelGroup()
@@ -400,9 +401,25 @@ class MainWindow(QtWidgets.QMainWindow):
         # Stretch in fondo alla colonna destra per evitare che i widget si espandano
         self.right_col.addStretch()
 
+        # Wrap colonna sinistra in un widget con larghezza minima
+        left_widget = QtWidgets.QWidget()
+        left_widget.setLayout(self.left_col)
+
+        right_widget = QtWidgets.QWidget()
+        right_widget.setLayout(self.right_col)
+
+        # La colonna sinistra deve avere min-width pari alla destra
+        right_widget.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+        )
+        left_widget.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred
+        )
+        left_widget.setMinimumWidth(600)
+
         # Unisci colonne nel layout principale
-        self.main_layout.addLayout(self.left_col, stretch=3)
-        self.main_layout.addLayout(self.right_col, stretch=2)
+        self.main_layout.addWidget(left_widget, stretch=1)
+        self.main_layout.addWidget(right_widget, stretch=1)
 
         # Widget centrale
         central = QtWidgets.QWidget()
@@ -468,6 +485,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ad_timer_interval_ms = ms
         self._at_al_timer_interval_ms = ms
         # innesco è fisso a 100 ms indipendentemente dalla selezione
+        # Aggiorna il dialog aperto se il test non è ancora partito
+        # (es. BLE si connette dopo l'apertura del dialog ma prima di INIZIO TEST)
+        for attr in ('_ad_dialog', '_at_al_dialog'):
+            dlg = getattr(self, attr, None)
+            if dlg is not None and not (hasattr(dlg, '_timer') and dlg._timer.isActive()):
+                dlg._timer_interval = ms
 
     def _on_ble_state_update_with_log(self, *args, **kwargs):
         # Logga il tempo di ricezione della notifica BLE
@@ -566,7 +589,11 @@ class MainWindow(QtWidgets.QMainWindow):
             "File Excel (*.xlsx *.xls);;Tutti i file (*)"
         )
         if path:
-            self.excel_path_edit.setText(path)
+            import os
+            self.excel_path_edit.setText(os.path.basename(path))
+            self.excel_path_edit.setAlignment(QtCore.Qt.AlignRight)
+            self.excel_path_edit.setToolTip(path)
+            self._excel_full_path = path
 
     def _matricola_increment(self):
         """Increase the matricola number by 1."""
@@ -591,7 +618,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _refresh_tracker(self):
         """Rilegge l'Excel e aggiorna il tracker per la matricola corrente."""
-        excel_path = self.excel_path_edit.text()
+        excel_path = getattr(self, '_excel_full_path', '')
         matricola  = self.matricola_edit.text().strip()
         if not excel_path or not matricola:
             self.test_tracker.set_unknown()
@@ -662,7 +689,7 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 pass
 
-        excel_path = self.excel_path_edit.text()
+        excel_path = getattr(self, '_excel_full_path', '')
         matricola = self.matricola_edit.text().strip()
 
         if not excel_path:
