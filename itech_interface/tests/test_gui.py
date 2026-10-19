@@ -59,7 +59,7 @@ def test_constants_defined():
     assert AT_AL_START_VOLTAGE == 88
     assert INNESCO_START_VOLTAGE == 89
     assert TEST_CURRENT_A == 2
-    assert INNESCO_DIODE_OFFSET_V == 10.55
+    assert INNESCO_DIODE_OFFSET_V == 0.0
     assert not trip_btn.isEnabled()
     # find status label (last QLabel added)
     labels = popup.findChildren(QtWidgets.QLabel)

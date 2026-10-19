@@ -1,6 +1,7 @@
 """GUI implementation using PyQt5."""
 from PyQt5 import QtWidgets, QtCore
 from .widgets import ExcelGroup, ManualGroup, TestGroup, BleGroup, PSUStatusBar, ResultLabel, BLEStatusBar, AsyncBLEWorker, TestTrackerWidget
+from .widgets.diode_offset_input import DiodeOffsetInput
 from .handlers.ble_handlers import BLEHandlers
 import datetime
 from .controller import PowerSupplyController
@@ -52,7 +53,8 @@ AT_AL_TIMER_INTERVAL_MS = 1000  # ms
 INNESCO_START_VOLTAGE = 89       # V
 INNESCO_TIMER_INTERVAL_MS = 500  # ms — half-second steps
 INNESCO_DIODE_DELAY_MS = 1000    # ms — wait after trip before reading diode drop
-INNESCO_DIODE_OFFSET_V = 10.55   # V — subtracted from raw reading to get diode drop
+INNESCO_DIODE_OFFSET_V = 0.0     # V — first-use default; user edits are remembered
+DIODE_OFFSET_SETTING = "innesco/diode_offset_v"
 
 # Prove di isolamento (100 V / 500 V)
 TEST_100V_VOLTAGE = 100          # V
@@ -211,6 +213,7 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.setStyleSheet(self._MAINWINDOW_STYLESHEET)
         self.setWindowTitle("Test dei VLD RFI - Interfaccia Operatore")
+        self._settings = QtCore.QSettings("NittuMont", "TestVLD")
         self.ble_handlers = BLEHandlers(self)
         self._setup_ui()
         self.conn = None
@@ -223,6 +226,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._ad_test_active = False
         self._at_al_test_active = False
         self._innesco_test_active = False
+
+    def _load_diode_offset(self) -> float:
+        try:
+            value = float(self._settings.value(DIODE_OFFSET_SETTING, INNESCO_DIODE_OFFSET_V))
+        except (TypeError, ValueError):
+            return INNESCO_DIODE_OFFSET_V
+        if not DiodeOffsetInput.MINIMUM_V <= value <= DiodeOffsetInput.MAXIMUM_V:
+            return INNESCO_DIODE_OFFSET_V
+        return value
+
+    def _save_diode_offset(self, value: float) -> None:
+        self._settings.setValue(DIODE_OFFSET_SETTING, value)
+        self._settings.sync()
 
     def on_test_anomalia_tiristore_limiti(self):
         """Apre la finestra del test AT+AL (Anomalia Tiristore + Limiti)."""
@@ -331,7 +347,7 @@ class MainWindow(QtWidgets.QMainWindow):
             "background: #2a2a3d; border: 1px solid #3b3b54; border-radius: 4px; padding: 3px 8px; margin-left: 12px;"
         )
 
-        # --- Barra di stato fissa in alto (unica riga: PSU + BLE + Step) ---
+        # --- Barra di stato fissa in alto: PSU + BLE + Step + offset diodo ---
         status_row = QtWidgets.QHBoxLayout()
         status_row.setSpacing(16)
         self.psu_status_bar = PSUStatusBar()
@@ -341,6 +357,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ble_status_bar.reconnect_btn.clicked.connect(self._on_ble_reconnect_clicked)
         status_row.addWidget(self.ble_status_bar)
         status_row.addWidget(self._step_interval_label)
+        self.diode_offset_input = DiodeOffsetInput(self._load_diode_offset(), self)
+        self.diode_offset_input.valueChanged[float].connect(self._save_diode_offset)
+        diode_offset_label = QtWidgets.QLabel(DiodeOffsetInput.LABEL_TEXT)
+        diode_offset_label.setWordWrap(True)
+        diode_offset_label.setBuddy(self.diode_offset_input)
+        status_row.addWidget(diode_offset_label)
+        status_row.addWidget(self.diode_offset_input)
         status_row.addStretch()
 
         # Layout verticale globale: status_row + contenuto
@@ -388,8 +411,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # SOLO ORA crea la barra menu impostazioni (dopo il central widget)
         self.menu_bar = self.menuBar()
+        assert self.menu_bar is not None
         settings_menu = self.menu_bar.addMenu("Impostazioni")
+        assert settings_menu is not None
         step_menu = settings_menu.addMenu("Tempo step tensione")
+        assert step_menu is not None
         # Azioni step
         self._step_actions = {}
         for ms in [100, 50, 25, 10]:
@@ -410,6 +436,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._log_action.triggered.connect(self._show_ble_log_window)
         settings_menu.addAction(self._log_action)
 
+        help_menu = self.menu_bar.addMenu("Aiuto")
+        assert help_menu is not None
+        self._help_action = QtWidgets.QAction("Guida all'uso", self)
+        self._help_action.setShortcut("F1")
+        self._help_action.triggered.connect(self._show_help)
+        help_menu.addAction(self._help_action)
+
+    def _show_help(self):
+        from .widgets.help_dialog import HelpDialog
+        HelpDialog(self, DEFAULT_HOST, INNESCO_DIODE_OFFSET_V).exec_()
 
     def log_ble_notification(self, msg):
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -825,7 +861,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._write_to_excel,
             self._update_status,
             self._safe_power_off,
-            timer_step_ms=self._innesco_timer_interval_ms
+            timer_step_ms=self._innesco_timer_interval_ms,
+            diode_offset_input=self.diode_offset_input,
         )
         self._innesco_test_active = True
         self._innesco_dialog.finished.connect(self._close_innesco_test)

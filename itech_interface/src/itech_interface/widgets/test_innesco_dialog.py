@@ -1,8 +1,10 @@
 from PyQt5 import QtWidgets, QtCore
 from .dialog_style import POPUP_STYLESHEET
+from .diode_offset_input import DiodeOffsetInput
 
 class TestInnescoDialog(QtWidgets.QDialog):
-    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off, timer_step_ms=None):
+    def __init__(self, parent, ctrl, write_to_excel, update_status, safe_power_off,
+                 timer_step_ms=None, *, diode_offset_input: DiodeOffsetInput):
         super().__init__(parent)
         self.ctrl = ctrl
         self.write_to_excel = write_to_excel
@@ -13,11 +15,23 @@ class TestInnescoDialog(QtWidgets.QDialog):
         # timer_step_ms: valore scelto dall'utente, default 500ms se non specificato
         self._timer_interval = timer_step_ms if timer_step_ms is not None else 500
         self._diode_delay = 1000    # INNESCO_DIODE_DELAY_MS
-        self._diode_offset = 10.55  # INNESCO_DIODE_OFFSET_V
+        # Il dialog è modale: mantieni qui un campo sincronizzato con la barra in alto.
+        self._diode_offset_source = diode_offset_input
+        self.diode_offset_input = DiodeOffsetInput(diode_offset_input.current_value(), self)
+        diode_offset_input.valueChanged[float].connect(self.diode_offset_input.set_synced_value)
+        self.diode_offset_input.valueChanged[float].connect(diode_offset_input.set_synced_value)
+        self.finished.connect(self._disconnect_diode_offset)
         self._max_voltage = 120     # TEST_MAX_VOLTAGE
         self._history = []
         self._setup_ui()
 
+    def _disconnect_diode_offset(self):
+        # I dialog chiusi restano figli della finestra: non devono ricevere altri aggiornamenti.
+        source = self._diode_offset_source
+        if source is not None:
+            source.valueChanged[float].disconnect(self.diode_offset_input.set_synced_value)
+            self.diode_offset_input.valueChanged[float].disconnect(source.set_synced_value)
+            self._diode_offset_source = None
 
     def _setup_ui(self):
         self.setMinimumWidth(500)
@@ -25,6 +39,14 @@ class TestInnescoDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout()
         layout.setSpacing(10)
         layout.setContentsMargins(20, 20, 20, 20)
+        offset_row = QtWidgets.QHBoxLayout()
+        offset_label = QtWidgets.QLabel(DiodeOffsetInput.LABEL_TEXT)
+        offset_label.setWordWrap(True)
+        offset_label.setBuddy(self.diode_offset_input)
+        offset_row.addWidget(offset_label)
+        offset_row.addWidget(self.diode_offset_input)
+        offset_row.addStretch()
+        layout.addLayout(offset_row)
         label = QtWidgets.QLabel("Collegare il filo bianco al faston TP2.")
         label.setObjectName("instructions")
         label.setWordWrap(True)
@@ -102,10 +124,12 @@ class TestInnescoDialog(QtWidgets.QDialog):
         except Exception:
             raw = None
         if raw is not None:
-            adjusted = raw - self._diode_offset
+            diode_offset = self.diode_offset_input.current_value()
+            adjusted = raw - diode_offset
             summary = (
                 f"Innesco Tiristore\n"
                 f"Valore massimo raggiunto: {highest} V\n"
+                f"Offset diodo applicato: {diode_offset:.2f} V\n"
                 f"Caduta diodo: {adjusted:.2f} V\n"
                 f"Colonne: H={adjusted:.2f}, J=POS., "
                 f"K={int(round(highest))}, M=OK, N=POS."
